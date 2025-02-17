@@ -245,20 +245,21 @@ const changeColor = async (req, res, next) => {
 };
 
 
-const approveUser = (req, res, next) => {
-  var sql =
-    "UPDATE USERS SET Role =" +
-    connection.escape("Approved") +
-    " WHERE (USERS.Email= " +
-    connection.escape(req.body.email) +
-    ")";
-  pool.query(sql, function (error, results) {
-    if (error) {
+const approveUser = async (req, res, next) => {
+  const sql =
+    `UPDATE USERS 
+    SET Role = 'Approved'
+    WHERE USERS.Email= $1`;
+    try {
+      const results = await pool.query(sql, [
+        req.body.email
+      ]);
+      return res.status(200).json({ data: results });
+  
+    } catch (error) {
       console.error(error.stack);
       return res.status(500).json({ message: error.stack });
     }
-    return res.status(200).json({ message: "Success" });
-  });
 };
 
 
