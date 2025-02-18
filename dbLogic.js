@@ -787,15 +787,15 @@ const createNewCommunityPost = async (req, res, next) => {
     req.body.content,
     req.body.email,
     req.body.category, // Ensure category is passed correctly
-    req.body.fileurl || null, // Handle optional file URL
-    req.body.filedisplayname || "None",
-    req.body.filetype || "None",
+    req.body.fileUrl || null, // Handle optional file URL
+    req.body.fileDisplayName || "None",
+    req.body.fileType || "None",
     req.body.communityId // Ensure this is passed correctly
   ];
 
   try {
     const result = await pool.query(sql, values);
-    return res.status(201).json({ data: result.rows[0] });
+    return res.status(200).json({ data: result.rows[0] });
   } catch (error) {
     console.error('Error creating community post:', error.stack);
     return res.status(500).json({ message: 'Failed to create community post.', error: error.message });
