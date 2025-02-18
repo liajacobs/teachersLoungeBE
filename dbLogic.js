@@ -81,7 +81,7 @@ const verifyUserLogin = async (req, res, next) => {
       INNER JOIN SCHOOL AS S ON U.schoolid = S.schoolid
       WHERE U.email = $1
     `;
-    
+
     const results = await client.query(sql, [req.body.username]);
 
     if (results.rows.length > 0) {
@@ -250,16 +250,16 @@ const approveUser = async (req, res, next) => {
     `UPDATE USERS 
     SET Role = 'Approved'
     WHERE USERS.Email= $1`;
-    try {
-      const results = await pool.query(sql, [
-        req.body.email
-      ]);
-      return res.status(200).json({ data: results });
-  
-    } catch (error) {
-      console.error(error.stack);
-      return res.status(500).json({ message: error.stack });
-    }
+  try {
+    const results = await pool.query(sql, [
+      req.body.email
+    ]);
+    return res.status(200).json({ data: results });
+
+  } catch (error) {
+    console.error(error.stack);
+    return res.status(500).json({ message: error.stack });
+  }
 };
 
 
@@ -697,6 +697,9 @@ const joinCommunity = async (req, res, next) => {
 
     return res.status(201).json({ message: "User joined community successfully" });
   } catch (error) {
+    if (error.code === "23505") { // Constraint violation
+      return res.status(400).json({ message: "User is already a member of this community" });
+    }
     console.error(error);
     return res.status(500).json({ message: "Server error, try again" });
   } finally {
@@ -741,7 +744,7 @@ const getUserCommunities = (req, res, next) => {
     if (error) {
       return res.status(500).json({ message: "Server error, try again" });
     }
-
+    console.log(results.rows)
     return res.status(200).json({ data: results.rows });
   });
 };
@@ -832,7 +835,7 @@ const searchUser = async (req, res, next) => {
 const findUser = async (req, res, next) => {
   console.log('findUser hit');
 
-console.log(req.query);
+  console.log(req.query);
   const sql = `SELECT * FROM USERS 
                  WHERE email = $1`;
 
