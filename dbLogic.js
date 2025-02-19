@@ -803,8 +803,8 @@ const searchUser = async (req, res, next) => {
 
   if (searchQuery !== "") {
     const sql = `SELECT * FROM USERS 
-                 WHERE FirstName LIKE $1 
-                 OR LastName LIKE $1`;
+                 WHERE FirstName ILIKE $1 
+                 OR LastName ILIKE $1`;
 
     try {
       const client = await pool.connect();
