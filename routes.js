@@ -23,7 +23,7 @@ import {
   leaveCommunity,
   getUserCommunities,
   searchUser,
-  findUser, 
+  findUser,
   addComment,
   getComment,
   getCommentByCommentID,
@@ -42,7 +42,6 @@ import {
   unfriendUser,
   getFriendsList,
   getPendingFriendRequests,
-  getCategories,
   getTest,
   createNewCommunity,
   getSentFriendRequests,
@@ -113,9 +112,6 @@ router.delete("/unfriendUser", unfriendUser);
 router.get("/getFriendsList", getFriendsList);
 router.get("/getSentFriendRequests", getSentFriendRequests);
 router.get("/getPendingFriendRequests", getPendingFriendRequests);
-
-// Category Routes
-router.get("/getCategories", getCategories);
 
 // Test Route
 router.get("/getTest", getTest);
