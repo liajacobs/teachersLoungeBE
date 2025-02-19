@@ -541,14 +541,13 @@ const createNewPost = async (req, res, next) => {
   }
 
   const sql = `
-    INSERT INTO POST (content, email, categoryid, fileurl, filedisplayname, filetype, approved, communityid)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    INSERT INTO POST (content, email, fileurl, filedisplayname, filetype, approved, communityid)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *`;
 
   const values = [
     req.body.content,
     req.body.email,
-    req.body.categoryid,
     req.body.fileurl,
     req.body.filedisplayname,
     req.body.filetype,
@@ -751,19 +750,14 @@ const getUserCommunities = (req, res, next) => {
 
 const getCommunityApprovedPosts = async (req, res, next) => {
   console.log('getCommunityApprovedPosts hit');
-  const { communityID, category } = req.query;
+  const { communityID } = req.query;
 
-  const sql = category === "0"
-    ? `
+  const sql = `
       SELECT * 
       FROM POST 
       WHERE communityid = $1 AND approved = 1`
-    : `
-      SELECT * 
-      FROM POST 
-      WHERE communityid = $1 AND categoryid = $2 AND approved = 1`;
 
-  const values = category === "0" ? [communityID] : [communityID, category];
+  const values = [communityID];
 
   try {
     const result = await pool.query(sql, values);
@@ -780,13 +774,12 @@ const createNewCommunityPost = async (req, res, next) => {
   console.log(req.body);
 
   const sql = `
-    INSERT INTO POST (content, email, categoryid, fileurl, filedisplayname, filetype, communityid)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO POST (content, email, fileurl, filedisplayname, filetype, communityid)
+    VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *`;
   const values = [
     req.body.content,
     req.body.email,
-    req.body.category, // Ensure category is passed correctly
     req.body.fileUrl || null, // Handle optional file URL
     req.body.fileDisplayName || "None",
     req.body.fileType || "None",
@@ -1359,26 +1352,6 @@ const getPendingFriendRequests = async (req, res, next) => {
   }
 };
 
-
-
-
-const getCategories = async (req, res, next) => {
-  const client = await pool.connect();
-
-  try {
-    const sql = 'SELECT * FROM category';
-    const results = await client.query(sql);
-
-    return res.status(200).json({ data: results.rows });
-  } catch (error) {
-    console.log('Error fetching categories');
-    console.error(error);
-    return res.status(500).json({ message: "Server error, try again" });
-  } finally {
-    client.release();
-  }
-};
-
 const getTest = (req, res, next) => {
   const sql = 'SELECT * FROM USERS';
   pool.query(sql, function (error, results) {
@@ -1440,7 +1413,6 @@ export {
   getFriendsList,
   getSentFriendRequests,
   getPendingFriendRequests,
-  getCategories,
   getTest,
   changeColor
 };
