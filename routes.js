@@ -45,7 +45,10 @@ import {
   getTest,
   createNewCommunity,
   getSentFriendRequests,
-  changeColor
+  changeColor,
+  likePost,
+  getPostLikes,
+  checkLikedPost
 } from "./dbLogic.js";
 
 const router = express.Router();
@@ -112,6 +115,11 @@ router.delete("/unfriendUser", unfriendUser);
 router.get("/getFriendsList", getFriendsList);
 router.get("/getSentFriendRequests", getSentFriendRequests);
 router.get("/getPendingFriendRequests", getPendingFriendRequests);
+
+// Liking Post Routes
+router.post("/likePost", likePost);
+router.post("/getPostLikes", getPostLikes);
+router.post("/checkLikedPost", checkLikedPost);
 
 // Test Route
 router.get("/getTest", getTest);
