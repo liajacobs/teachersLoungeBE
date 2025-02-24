@@ -47,6 +47,7 @@ import {
   getSentFriendRequests,
   changeColor,
   likePost,
+  unlikePost,
   getPostLikes,
   checkLikedPost
 } from "./dbLogic.js";
@@ -120,6 +121,7 @@ router.get("/getPendingFriendRequests", getPendingFriendRequests);
 router.post("/likePost", likePost);
 router.post("/getPostLikes", getPostLikes);
 router.post("/checkLikedPost", checkLikedPost);
+router.post("/unlikePost", unlikePost);
 
 // Test Route
 router.get("/getTest", getTest);
