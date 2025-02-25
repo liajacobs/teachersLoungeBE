@@ -578,6 +578,25 @@ const likePost = async (req, res, next) => {
   }
 };
 
+const unlikePost = async (req, res, next) => {
+  console.log('unlikePost hit');
+  const sql = "DELETE FROM POST_LIKES WHERE PostID = $1 AND Email = $2 RETURNING *";
+  const values = [req.body.postId, req.body.userEmail];
+
+  try {
+    const results = await pool.query(sql, values);
+
+    if (results.rowCount === 0) {
+      return res.status(404).json({ message: "You have not liked this post yet!" });
+    }
+
+    return res.status(200).json({ message: "Post unliked successfully." });
+  } catch (error) {
+    console.error(error.stack);
+    return res.status(500).json({ message: "Server error, try again." });
+  }
+};
+
 // Get the number of likes for a post
 const getPostLikes = async (req, res, next) => {
   const sql = "SELECT COUNT(*) as likeCount FROM POST_LIKES WHERE POSTID = $1";
@@ -591,6 +610,35 @@ const getPostLikes = async (req, res, next) => {
     return res.status(500).json({ message: "Server error, try again" });
   }
 };
+
+// Check if user already liked the post
+const checkLikedPost = async (req, res, next) => {
+  console.log("checkLikedPost hit"); 
+  const sql =
+    "SELECT EXISTS(SELECT 1 FROM POST_LIKES WHERE PostID=$1 AND Email=$2) AS exists";
+  const values = [req.body.postId, req.body.userEmail];
+
+  console.log("Received request with:", values); 
+
+  try {
+    const results = await pool.query(sql, values);
+    console.log("Query executed, results:", results.rows); 
+
+    if (results.rows[0].exists) {
+      console.log("Post is already liked! Returning 409.");
+      return res
+        .status(409)
+        .json({ message: "You've already liked this post!" });
+    } else {
+      console.log("Post is not liked yet! Returning 200.");
+      return res.status(200).json({ message: "Successfully liked the post!" });
+    }
+  } catch (error) {
+    console.error("Database query error:", error.stack);
+    return res.status(500).json({ message: "Server error, try again" });
+  }
+};
+
 
 // Get comments for a post
 const getPostComments = async (req, res, next) => {
@@ -1026,6 +1074,8 @@ const createConversation = async (req, res, next) => {
 };
 
 
+
+
 // Gets conversations for a user
 const getConversations = async (req, res, next) => {
   console.log('getConversations hit');
@@ -1352,6 +1402,9 @@ const getPendingFriendRequests = async (req, res, next) => {
   }
 };
 
+
+
+
 const getTest = (req, res, next) => {
   const sql = 'SELECT * FROM USERS';
   pool.query(sql, function (error, results) {
@@ -1381,6 +1434,8 @@ export {
   getPostComments,
   getPostLikes,
   likePost,
+  unlikePost,
+  checkLikedPost,
   createNewUser,
   createNewPost,
   fileUpload,
