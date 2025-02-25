@@ -902,13 +902,14 @@ const addComment = async (req, res, next) => {
 
   // SQL query to insert a new comment
   const sql = `
-    INSERT INTO COMMENT (content, email, time)
-    VALUES ($1, $2, $3)
+    INSERT INTO COMMENT (content, email, time, postid)
+    VALUES ($1, $2, $3, $4)
     RETURNING *`;
   const values = [
     req.body.content,
     req.body.email,
     req.body.time,
+    req.body.postid
   ];
 
   try {
@@ -924,7 +925,7 @@ const addComment = async (req, res, next) => {
 const getComment = async (req, res, next) => {
   console.log('getComment hit');
   const sql = "SELECT * FROM COMMENT WHERE email = $1 AND content = $2";
-  const values = [req.body.email, req.body.content];
+  const values = [req.query.email, req.query.content];
 
   try {
     const results = await pool.query(sql, values);
@@ -937,7 +938,7 @@ const getComment = async (req, res, next) => {
 
 const getCommentByCommentID = async (req, res, next) => {
   console.log('getCommentByCommentID hit');
-  const sql = "SELECT * FROM COMMENT WHERE CommentId = $1";
+  const sql = "SELECT * FROM COMMENT WHERE id = $1";
   const values = [req.body.commentId];
 
   try {
@@ -967,14 +968,13 @@ const addCommentToPost = async (req, res, next) => {
 };
 
 const getCommentsByPostID = async (req, res, next) => {
-  console.log('getCommentsByPostID hit');
 
   const postId = Number(req.query.postId);
 
   if (isNaN(postId)) {
     return res.status(400).json({ message: 'Invalid postId' });
   }
-
+/*
   const sql = `
     SELECT 
         c.content,
@@ -986,9 +986,18 @@ const getCommentsByPostID = async (req, res, next) => {
     JOIN 
         comment AS c
     ON 
-        ctp.commentid = c.commentid
+        ctp.commentid = c.id
     WHERE 
         ctp.postid = $1;
+  `;
+  */
+  const sql = `
+    SELECT 
+        *
+    FROM 
+        comment
+    WHERE 
+        postid = $1;
   `;
 
   try {
