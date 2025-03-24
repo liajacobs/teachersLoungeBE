@@ -1,33 +1,59 @@
-import AWS from 'aws-sdk';
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import multer from "multer";
+import { configDotenv } from "dotenv";
+
+// Load environment variables from .env file
+configDotenv();
 
 //Initialize s3 info
-const s3 = new AWS.S3({
+const s3 = new S3Client({
+  credentials: {
     accessKeyId: process.env.S3_ACCESS_KEY,
-    secretAccessKey: process.env.S3_SECRET_KEY
-  });
+    secretAccessKey: process.env.S3_SECRET_KEY,
+  },
+  region: process.env.S3_REGION,
+});
+
 
 
 //Functions for managing files
 
+// Was getting errors related to double response, so moved to dbLogic
 //Function to upload to s3
-const s3Upload = (req,res)=>{   
+const s3Upload = async (req,res) => {   
     const file = req.file;
-    const bucket = process.env.S3_BUCKET
-    const fileLoc = "uploads/"+Date.now()+file.originalname.split(' ').join('_')
+    
+    // Log file
+    console.log("\nFile: " + file + "\n");
+
+    // Name file with timestamp
+    const fileLoc = "uploads/" + file.originalname.split(' ').join('_');
+
+    // Set up parameters for S3 upload
     const params = {
-      Bucket: bucket,        
+      Bucket: process.env.S3_BUCKET,
       Body: file.buffer,
-      Key: fileLoc
-    };   
-    s3.upload(params, function(err, data) {
-      if (err) {
-          throw err;
-      }
-      res.status(200).send({message:'Image uploaded succesfully',bucket: bucket, file:fileLoc})
-      //console.log("File uploaded (log from server) "+bucket+"/"+fileLoc);
-    });
-         
+      Key: fileLoc,
+      ContentType: file.mimetype
+    };
+
+    // Upload file to S3
+    console.log("Putting object in S3 with params: ", params);
+    const command = new PutObjectCommand(params);
+     
+    await s3.send(command);
+
+    try {
+      await s3.send(command);
+      res.status(200).send({ message: 'Image uploaded successfully', bucket: process.env.S3_BUCKET, file: fileLoc });
+      console.log("File uploaded successfully: " + process.env.S3_BUCKET + "/" + fileLoc);
+      return `https://${process.env.S3_BUCKET}.s3.${process.env.S3_REGION}.amazonaws.com/${fileLoc}`; // Return the file URL
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({ message: 'Image upload failed', error: err.message });
+      return null;
+    }
   }
 
 const s3Delete = (req,res,next)=>{
@@ -51,14 +77,21 @@ const s3Delete = (req,res,next)=>{
     
     
 }
-  
 
-  //Function that parses file from http request body
-  const fileHelper = multer({
-    limits:{fieldSize: 25 * 1024 * 1024},
-    fileFilter(req, file, cb) {      
-        cb(undefined, true)
-    }
-  });
+// Set up multer storage so it initially stores file in memory
+const storage = multer.memoryStorage();
 
-export {fileHelper, s3Upload, s3Delete};
+const upload = multer({ 
+  storage: storage,
+  limits: { fieldSize: 50 * 1024 * 1024 } // Increase field size limit to 50MB
+});
+
+/* Function that parses file from http request body
+const fileHelper = multer({
+  limits:{fieldSize: 50 * 1024 * 1024},
+  fileFilter(req, file, cb) {      
+      cb(undefined, true)
+  }
+});*/
+
+export {s3Upload, s3Delete, upload};
