@@ -4,7 +4,6 @@ import {
   getAllApprovedPosts,
   getPendingPosts,
   getUserPosts,
-  getNumberOfComments,
   deletePost,
   createNewCommunityPost,
   getCommunityApprovedPosts,
@@ -29,7 +28,6 @@ import {
   addComment,
   getComment,
   getCommentByCommentID,
-  addCommentToPost,
   getCommentsByPostID,
   updateComment,
   deleteComment,
@@ -77,7 +75,6 @@ router.post("/createNewPost", createNewPost);
 router.get("/getAllApprovedPosts", getAllApprovedPosts);
 router.get("/getPendingPosts", getPendingPosts);
 router.get("/getUserPosts", getUserPosts);
-router.get("/getNumberOfComments", getNumberOfComments);
 router.delete("/deletePost", deletePost);
 
 // Community Post Routes
@@ -100,7 +97,6 @@ router.get("/findUser", findUser);
 router.post("/addComment", addComment);
 router.get("/getComment", getComment);
 router.get("/getCommentByCommentID", getCommentByCommentID);
-router.post("/addCommentToPost", addCommentToPost);
 router.get("/getCommentsByPostID", getCommentsByPostID);
 router.put("/updateComment", updateComment);
 router.delete("/deleteComment", deleteComment);

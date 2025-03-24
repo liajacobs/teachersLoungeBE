@@ -460,7 +460,7 @@ const deletePost = async (req, res, next) => {
     await pool.query(deleteLikesSql, [req.body.id]);
 
     // Delete comments associated with the post
-    const deleteCommentsSql = "DELETE FROM COMMENTS_TO_POST WHERE postid = $1";
+    const deleteCommentsSql = "DELETE FROM COMMENT WHERE postid = $1";
     await pool.query(deleteCommentsSql, [req.body.id]);
 
     // Delete the post itself
@@ -502,21 +502,6 @@ const getUserPosts = async (req, res, next) => {
   }
 };
 
-const getNumberOfComments = async (req, res, next) => {
-  console.log('getNumberOfComments hit')
-  const sql = "SELECT COUNT(*) FROM COMMENTS_TO_POST WHERE PostID = $1";
-  const values = [req.query.id];
-
-  try {
-    const results = await pool.query(sql, values);
-    return res.status(200).json({ count: results.rows[0].count });
-  } catch (error) {
-    console.error(error.stack);
-    return res.status(500).json({ message: error.stack });
-  }
-};
-
-
 // Get all approved posts
 // const getAllApprovedPosts = async (req, res, next) => {
 //   console.log('getAllApprovedPosts hit')
@@ -544,7 +529,7 @@ const getAllApprovedPosts = async (req, res, next) => {
       LEFT JOIN POST_LIKES pl ON p.postid = pl.postid
       LEFT JOIN (
         SELECT postid, COUNT(*) AS commentscount
-        FROM COMMENTS_TO_POST
+        FROM COMMENT
         GROUP BY postid
       ) cmt ON p.postid = cmt.postid
       WHERE p.approved = $1
@@ -689,56 +674,6 @@ const checkLikedPost = async (req, res, next) => {
 };
 
 
-// Get comments for a post
-const getPostComments = async (req, res, next) => {
-  const sql = "SELECT * FROM COMMENTS_TO_POST WHERE PostID = $1";
-  const values = [req.body.postId];
-
-  try {
-    const results = await pool.query(sql, values);
-    return res.status(200).json({ data: results.rows });
-  } catch (error) {
-    console.error(error.stack);
-    return res.status(500).json({ message: error.stack });
-  }
-};
-/*
-const createNewCommunity = (req, res, next) => {
-  let sql =
-    "SELECT * FROM COMMUNITY WHERE CommunityName = '" +
-    req.body.communityName +
-    "';";
-
-  // Check if community exists
-  pool.query(sql, function (error, results) {
-    // Return error if any
-    if (error) {
-      return res.status(500).json({ message: "Server error, try again" });
-    }
-
-    // Create community if it doesn't exist
-    if (results[0] == null) {
-      sql =
-        "INSERT INTO COMMUNITY(CommunityName) VALUES (" +
-        connection.escape(req.body.communityName) +
-        ")";
-
-      // Run insert query
-      pool.query(sql, function (error, results) {
-        // Return error if any
-        if (error) {
-          return res.status(500).json({ message: "Server error, try again" });
-        }
-
-        return res
-          .status(201)
-          .json({ message: "Community created successfully" });
-      });
-    } else {
-      return res.status(500).json({ message: "Community already exists!" });
-    }
-  });
-}; */
 const createNewCommunity = (req, res, next) => {
   console.log('create new community hit');
   const sql = "SELECT * FROM COMMUNITY WHERE communityname = $1";
@@ -850,14 +785,32 @@ const getCommunityApprovedPosts = async (req, res, next) => {
   const { communityID } = req.query;
 
   const sql = `
-      SELECT * 
-      FROM POST 
-      WHERE communityid = $1 AND approved = 1`
+    SELECT p.*, 
+           c.communityname, 
+           COALESCE(COUNT(pl.postid), 0) AS likescount, 
+           COALESCE(cmt.commentscount, 0) AS commentscount
+    FROM POST p
+    LEFT JOIN COMMUNITY c ON p.communityid = c.communityid
+    LEFT JOIN POST_LIKES pl ON p.postid = pl.postid
+    LEFT JOIN (
+      SELECT postid, COUNT(*) AS commentscount
+      FROM COMMENT
+      GROUP BY postid
+    ) cmt ON p.postid = cmt.postid
+    WHERE p.communityid = $1 AND p.approved = 1
+    GROUP BY p.postid, c.communityname, cmt.commentscount
+  `;
 
   const values = [communityID];
 
   try {
     const result = await pool.query(sql, values);
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({ data: [] });
+    }
+
+    console.log(result.rows);
     return res.status(200).json({ data: result.rows });
   } catch (error) {
     console.error('Error fetching community posts:', error.stack);
@@ -1023,23 +976,6 @@ const getCommentByCommentID = async (req, res, next) => {
   }
 };
 
-const addCommentToPost = async (req, res, next) => {
-  console.log('addCommentToPost hit');
-  const sql = `
-    INSERT INTO COMMENTS_TO_POST (Email, CommentId, PostId)
-    VALUES ($1, $2, $3)
-    RETURNING *`;
-  const values = [req.body.email, req.body.commentId, req.body.postId];
-
-  try {
-    const results = await pool.query(sql, values);
-    return res.status(200).json({ data: results.rows[0] });
-  } catch (error) {
-    console.error('Error adding comment to post:', error.stack);
-    return res.status(500).json({ message: 'Server error, try again' });
-  }
-};
-
 const getCommentsByPostID = async (req, res, next) => {
 
   const postId = Number(req.query.postId);
@@ -1047,23 +983,6 @@ const getCommentsByPostID = async (req, res, next) => {
   if (isNaN(postId)) {
     return res.status(400).json({ message: 'Invalid postId' });
   }
-  /*
-    const sql = `
-      SELECT 
-          c.content,
-          c.email,
-          c."time",
-          ctp.postid
-      FROM 
-          comments_to_post AS ctp
-      JOIN 
-          comment AS c
-      ON 
-          ctp.commentid = c.id
-      WHERE 
-          ctp.postid = $1;
-    `;
-    */
   const sql = `
     SELECT 
         *
@@ -1513,8 +1432,6 @@ export {
   verifyUserLogin,
   registerNewUser,
   getUserPosts,
-  getNumberOfComments,
-  getPostComments,
   getPostLikes,
   likePost,
   unlikePost,
@@ -1536,7 +1453,6 @@ export {
   addComment,
   getComment,
   getCommentByCommentID,
-  addCommentToPost,
   getCommentsByPostID,
   updateComment,
   deleteComment,
