@@ -502,12 +502,62 @@ const getUserPosts = async (req, res, next) => {
   }
 };
 
-// Get all approved posts
-const getAllApprovedPosts = async (req, res, next) => {
-  console.log('getAllApprovedPosts hit')
+const getNumberOfComments = async (req, res, next) => {
+  console.log('getNumberOfComments hit')
+  const sql = "SELECT COUNT(*) FROM COMMENTS_TO_POST WHERE PostID = $1";
+  const values = [req.query.id];
+
   try {
-    const sql = "SELECT * FROM POST WHERE approved = $1";
+    const results = await pool.query(sql, values);
+    return res.status(200).json({ count: results.rows[0].count });
+  } catch (error) {
+    console.error(error.stack);
+    return res.status(500).json({ message: error.stack });
+  }
+};
+
+
+// Get all approved posts
+// const getAllApprovedPosts = async (req, res, next) => {
+//   console.log('getAllApprovedPosts hit')
+//   try {
+//     const sql = "SELECT * FROM POST WHERE approved = $1";
+//     const results = await pool.query(sql, [1]); // 1 for approved posts
+
+//     return res.status(200).json({ data: results.rows });
+//   } catch (error) {
+//     console.error(error.stack);
+//     return res.status(500).json({ message: "Server error, try again" });
+//   }
+// };
+// Get all approved posts with likes and comments count
+const getAllApprovedPosts = async (req, res, next) => {
+  console.log('getAllApprovedPosts hit');
+  try {
+    const sql = `
+      SELECT p.*, 
+             c.communityname, 
+             COALESCE(COUNT(pl.postid), 0) AS likescount, 
+             COALESCE(cmt.commentscount, 0) AS commentscount
+      FROM POST p
+      LEFT JOIN COMMUNITY c ON p.communityid = c.communityid
+      LEFT JOIN POST_LIKES pl ON p.postid = pl.postid
+      LEFT JOIN (
+        SELECT postid, COUNT(*) AS commentscount
+        FROM COMMENTS_TO_POST
+        GROUP BY postid
+      ) cmt ON p.postid = cmt.postid
+      WHERE p.approved = $1
+      GROUP BY p.postid, c.communityname, cmt.commentscount
+    `;
+
     const results = await pool.query(sql, [1]); // 1 for approved posts
+
+    if (results.rows.length === 0) {
+      return res.status(200).json({ data: [] });
+    }
+
+    console.log(results.rows)
 
     return res.status(200).json({ data: results.rows });
   } catch (error) {
@@ -515,7 +565,6 @@ const getAllApprovedPosts = async (req, res, next) => {
     return res.status(500).json({ message: "Server error, try again" });
   }
 };
-
 
 const fileUpload = async (req, res, next) => {
   console.log('File upload hit');
@@ -529,7 +578,7 @@ const fileUpload = async (req, res, next) => {
     return res.status(500).json({ message: error.stack });
   }
 };
-//Database functionality with likes and comments has not been implemented yet but these functions are how we imagine that would happen...
+
 // Create a new post
 const createNewPost = async (req, res, next) => {
   console.log('create new post hit');
@@ -613,16 +662,16 @@ const getPostLikes = async (req, res, next) => {
 
 // Check if user already liked the post
 const checkLikedPost = async (req, res, next) => {
-  console.log("checkLikedPost hit"); 
+  console.log("checkLikedPost hit");
   const sql =
     "SELECT EXISTS(SELECT 1 FROM POST_LIKES WHERE PostID=$1 AND Email=$2) AS exists";
   const values = [req.body.postId, req.body.userEmail];
 
-  console.log("Received request with:", values); 
+  console.log("Received request with:", values);
 
   try {
     const results = await pool.query(sql, values);
-    console.log("Query executed, results:", results.rows); 
+    console.log("Query executed, results:", results.rows);
 
     if (results.rows[0].exists) {
       console.log("Post is already liked! Returning 409.");
@@ -843,6 +892,30 @@ const createNewCommunityPost = async (req, res, next) => {
   }
 };
 
+const getCommunityName = async (req, res) => {
+  const { communityId } = req.query;
+
+  if (!communityId) {
+    return res.status(400).json({ error: "communityId is required" });
+  }
+
+  try {
+    const [result] = await db.execute(
+      "SELECT communityname FROM COMMUNITY WHERE communityid = ?",
+      [communityId]
+    );
+
+    if (result.length === 0) {
+      return res.status(404).json({ error: "Community not found" });
+    }
+
+    res.json({ communityName: result[0].communityname });
+  } catch (error) {
+    console.error("Error fetching community name:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+}
+
 // Searches for a user
 const searchUser = async (req, res, next) => {
   const searchQuery = req.query.searchQuery;
@@ -974,23 +1047,23 @@ const getCommentsByPostID = async (req, res, next) => {
   if (isNaN(postId)) {
     return res.status(400).json({ message: 'Invalid postId' });
   }
-/*
-  const sql = `
-    SELECT 
-        c.content,
-        c.email,
-        c."time",
-        ctp.postid
-    FROM 
-        comments_to_post AS ctp
-    JOIN 
-        comment AS c
-    ON 
-        ctp.commentid = c.id
-    WHERE 
-        ctp.postid = $1;
-  `;
-  */
+  /*
+    const sql = `
+      SELECT 
+          c.content,
+          c.email,
+          c."time",
+          ctp.postid
+      FROM 
+          comments_to_post AS ctp
+      JOIN 
+          comment AS c
+      ON 
+          ctp.commentid = c.id
+      WHERE 
+          ctp.postid = $1;
+    `;
+    */
   const sql = `
     SELECT 
         *
@@ -1440,6 +1513,7 @@ export {
   verifyUserLogin,
   registerNewUser,
   getUserPosts,
+  getNumberOfComments,
   getPostComments,
   getPostLikes,
   likePost,
@@ -1456,6 +1530,7 @@ export {
   getUserCommunities,
   getCommunityApprovedPosts,
   createNewCommunityPost,
+  getCommunityName,
   searchUser,
   findUser,
   addComment,
