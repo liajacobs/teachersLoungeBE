@@ -1111,20 +1111,25 @@ const getCommentsByPostID = async (req, res, next) => {
 
   const postId = Number(req.query.postId);
 
+  const userEmail = req.query.userEmail;
+
   if (isNaN(postId)) {
     return res.status(400).json({ message: 'Invalid postId' });
   }
   const sql = `
     SELECT 
-        *
+        c.*
     FROM 
-        comment
+        comment c
+    LEFT JOIN
+        mutes m ON (m.muter = $2 AND m.mutee = c.email)
     WHERE 
-        postid = $1;
+        postid = $1
+        AND m.muter IS NULL
   `;
 
   try {
-    const results = await pool.query(sql, [postId]);
+    const results = await pool.query(sql, [postId, userEmail]);
     return res.status(200).json({ data: results.rows });
   } catch (error) {
     console.error('Error fetching comments by post ID:', error.stack);
