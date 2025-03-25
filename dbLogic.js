@@ -914,7 +914,7 @@ const getUserCommunities = (req, res, next) => {
 const getCommunityApprovedPosts = async (req, res, next) => {
   console.log('getCommunityApprovedPosts hit');
   const { communityID } = req.query.communityID;
-  const { userEmail } = req.query.userEmail
+  const { userEmail } = req.query.userEmail;
 
   const sql = `
     SELECT p.*, 
