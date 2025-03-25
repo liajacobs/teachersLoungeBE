@@ -913,8 +913,8 @@ const getUserCommunities = (req, res, next) => {
 
 const getCommunityApprovedPosts = async (req, res, next) => {
   console.log('getCommunityApprovedPosts hit');
-  const { communityID } = req.query.communityID;
-  const { userEmail } = req.query.userEmail;
+  const communityID = req.query.communityID;
+  const userEmail = req.query.userEmail;
   console.log(req.query.communityID)
   console.log(req.query.userEmail)
 
