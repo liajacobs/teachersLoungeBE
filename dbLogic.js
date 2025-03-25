@@ -913,7 +913,8 @@ const getUserCommunities = (req, res, next) => {
 
 const getCommunityApprovedPosts = async (req, res, next) => {
   console.log('getCommunityApprovedPosts hit');
-  const { communityID } = req.query;
+  const { communityID } = req.query.communityID;
+  const { userEmail } = req.query.userEmail
 
   const sql = `
     SELECT p.*, 
@@ -928,11 +929,12 @@ const getCommunityApprovedPosts = async (req, res, next) => {
       FROM COMMENT
       GROUP BY postid
     ) cmt ON p.postid = cmt.postid
-    WHERE p.communityid = $1 AND p.approved = 1
+    LEFT JOIN mutes m ON (m.muter = $2 AND m.mutee = p.email)
+    WHERE p.communityid = $1 AND p.approved = 1 AND m.muter IS NULL
     GROUP BY p.postid, c.communityname, cmt.commentscount
   `;
 
-  const values = [communityID];
+  const values = [communityID, userEmail];
 
   try {
     const result = await pool.query(sql, values);
