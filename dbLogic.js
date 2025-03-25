@@ -1126,7 +1126,7 @@ const getCommentsByPostID = async (req, res, next) => {
         mutes m ON (m.muter = $2 AND m.mutee = c.email)
     WHERE 
         c.postid = $1
-        AND m.muter IS NULL
+        AND m.muter IS NULL;
   `;
 
   try {
