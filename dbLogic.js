@@ -1391,12 +1391,27 @@ const friendUser = async (req, res, next) => {
   const frienderEmail = req.body.frienderEmail;
   const friendeeEmail = req.body.friendeeEmail;
 
-  const sql = `INSERT INTO FRIENDS (friendee, friender) VALUES ($1, $2)`;
+  const sql = `
+    SELECT EXISTS (
+      SELECT 1 
+      FROM blocks 
+      WHERE (blocker = $1 AND blockee = $2) OR (blocker = $2 AND blockee = $1)
+    ) AS is_blocked
+  `;
 
   try {
     const client = await pool.connect();
 
-    await client.query(sql, [friendeeEmail, frienderEmail]);
+    const blockCheckResult = await client.query(sql, [frienderEmail, friendeeEmail]);
+  
+    if (blockCheckResult.rows[0].is_blocked) {
+      client.release();
+      return res.status(403).json({ message: "Cannot friend user"})
+    }
+
+    const insertSql = `INSERT INTO FRIENDS (friendee, friender) VALUES ($1, $2)`;
+
+    await client.query(insertSql, [friendeeEmail, frienderEmail]);
 
     client.release();
 
