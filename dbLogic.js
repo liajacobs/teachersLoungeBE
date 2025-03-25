@@ -1694,7 +1694,7 @@ const unblockUser = async (req, res, next) => {
 
     return res.status(201).json({ message: "User unblocked successfully" });
   } catch (error) {
-    console.error("Error unmuting user:". error.stack);
+    console.error("Error unblocking user:". error.stack);
     return res.status(500).json({ message: "Server error, try again "});
   }
 };
