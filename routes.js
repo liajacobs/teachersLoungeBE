@@ -1,4 +1,5 @@
 import express from "express";
+import { upload } from "./fileManagement.js";
 import {
   createNewPost,
   getAllApprovedPosts,
@@ -71,7 +72,7 @@ router.delete("/deleteUser", deleteUser);
 //router.post("/promoteUser", promoteUser);
 
 // Post Routes
-router.post("/fileUpload", fileUpload);
+router.post("/fileUpload", upload.single('file'), fileUpload);
 router.post("/createNewPost", createNewPost);
 router.get("/getAllApprovedPosts", getAllApprovedPosts);
 router.get("/getAllApprovedPostsByUser/:username", getAllApprovedPostsByUser);
