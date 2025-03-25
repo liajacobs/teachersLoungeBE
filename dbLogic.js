@@ -1416,7 +1416,7 @@ const unfriendUser = async (req, res, next) => {
       return res.status(404).json({ message: "Friendship not found" });
     }
 
-    return res.status(200).json({ message: "User unfriended successfully" });
+    return res.status(201).json({ message: "User unfriended successfully" });
   } catch (error) {
     console.error("Error unfriending user:", error.stack);
     return res.status(500).json({ message: "Server error, try again" });
@@ -1574,7 +1574,7 @@ const unmuteUser = async (req, res, next) => {
       return res.status(404).json({ message: "Mute relationship not found" });
     }
 
-    return res.status(200).json({ message: "User unmuted successfully" });
+    return res.status(201).json({ message: "User unmuted successfully" });
   } catch (error) {
     console.error("Error unmuting user:". error.stack);
     return res.status(500).json({ message: "Server error, try again "});
@@ -1594,7 +1594,7 @@ const getMuteList = async (req, res, next) => {
 
     client.release();
 
-    return res.status(200).json({ data: result.rows });
+    return res.status(201).json({ data: result.rows });
   } catch (error) {
     console.error("Error getting muted users:", error.stack);
     return res.status(500).json({ message: error.stack });
