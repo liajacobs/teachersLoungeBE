@@ -141,8 +141,8 @@ router.get("/checkIfMuted", checkIfMuted)
 
 // Blocking Routes
 router.post("/blockUser", blockUser);
-router.post("/unblockUser", unblockUser);
-router.post("/checkIfBlocked", checkIfBlocked);
+router.delete("/unblockUser", unblockUser);
+router.get("/checkIfBlocked", checkIfBlocked);
 
 // Test Route
 router.get("/getTest", getTest);
