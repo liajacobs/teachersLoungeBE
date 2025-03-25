@@ -51,7 +51,11 @@ import {
   likePost,
   unlikePost,
   getPostLikes,
-  checkLikedPost
+  checkLikedPost,
+  muteUser,
+  unmuteUser,
+  getMuteList,
+  checkIfMuted
 } from "./dbLogic.js";
 
 const router = express.Router();
@@ -125,6 +129,12 @@ router.post("/likePost", likePost);
 router.post("/getPostLikes", getPostLikes);
 router.post("/checkLikedPost", checkLikedPost);
 router.post("/unlikePost", unlikePost);
+
+// Muting Routes
+router.post("/muteUser", muteUser);
+router.delete("/unmuteUser", unmuteUser);
+router.get("/getMuteList", getMuteList);
+router.get("/checkIfMuted", checkIfMuted)
 
 // Test Route
 router.get("/getTest", getTest);
