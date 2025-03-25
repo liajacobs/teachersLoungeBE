@@ -534,6 +534,8 @@ const getUserPosts = async (req, res, next) => {
 const getAllApprovedPosts = async (req, res, next) => {
   console.log('getAllApprovedPosts hit');
   try {
+    const userEmail = req.query.userEmail;
+
     const sql = `
       SELECT p.*, 
              c.communityname, 
@@ -547,11 +549,12 @@ const getAllApprovedPosts = async (req, res, next) => {
         FROM COMMENT
         GROUP BY postid
       ) cmt ON p.postid = cmt.postid
-      WHERE p.approved = $1
+      LEFT JOIN mutes m ON (m.muter = $2 AND m.mutee = p.email)
+      WHERE p.approved = $1 AND m.muter IS NULL
       GROUP BY p.postid, c.communityname, cmt.commentscount
     `;
 
-    const results = await pool.query(sql, [1]); // 1 for approved posts
+    const results = await pool.query(sql, [1, userEmail]); // 1 for approved posts
 
     if (results.rows.length === 0) {
       return res.status(200).json({ data: [] });
@@ -910,7 +913,10 @@ const getUserCommunities = (req, res, next) => {
 
 const getCommunityApprovedPosts = async (req, res, next) => {
   console.log('getCommunityApprovedPosts hit');
-  const { communityID } = req.query;
+  const communityID = req.query.communityID;
+  const userEmail = req.query.userEmail;
+  console.log(req.query.communityID)
+  console.log(req.query.userEmail)
 
   const sql = `
     SELECT p.*, 
@@ -925,11 +931,13 @@ const getCommunityApprovedPosts = async (req, res, next) => {
       FROM COMMENT
       GROUP BY postid
     ) cmt ON p.postid = cmt.postid
-    WHERE p.communityid = $1 AND p.approved = 1
-    GROUP BY p.postid, c.communityname, cmt.commentscount
+    LEFT JOIN mutes m ON (m.muter = $2 AND m.mutee = p.email)
+    WHERE p.communityid = $1 AND p.approved = 1 AND m.muter IS NULL
+    GROUP BY p.postid, c.communityname, cmt.commentscount;
   `;
 
-  const values = [communityID];
+  const values = [communityID, userEmail];
+  console.log(values)
 
   try {
     const result = await pool.query(sql, values);
@@ -1105,24 +1113,30 @@ const getCommentByCommentID = async (req, res, next) => {
 };
 
 const getCommentsByPostID = async (req, res, next) => {
+  console.log('getCommentByPostID hit');
 
   const postId = Number(req.query.postId);
+
+  const userEmail = req.query.userEmail;
 
   if (isNaN(postId)) {
     return res.status(400).json({ message: 'Invalid postId' });
   }
   const sql = `
     SELECT 
-        *
+        c.*
     FROM 
-        comment
+        comment c
+    LEFT JOIN
+        mutes m ON (m.muter = $2 AND m.mutee = c.email)
     WHERE 
-        postid = $1;
+        c.postid = $1
+        AND m.muter IS NULL;
   `;
 
   try {
-    const results = await pool.query(sql, [postId]);
-    return res.status(200).json({ data: results.rows });
+    const results = await pool.query(sql, [postId, userEmail]);
+    return res.status(201).json({ data: results.rows });
   } catch (error) {
     console.error('Error fetching comments by post ID:', error.stack);
     return res.status(500).json({ message: 'Server error, try again' });
@@ -1377,12 +1391,27 @@ const friendUser = async (req, res, next) => {
   const frienderEmail = req.body.frienderEmail;
   const friendeeEmail = req.body.friendeeEmail;
 
-  const sql = `INSERT INTO FRIENDS (friendee, friender) VALUES ($1, $2)`;
+  const sql = `
+    SELECT EXISTS (
+      SELECT 1 
+      FROM blocks 
+      WHERE (blocker = $1 AND blockee = $2) OR (blocker = $2 AND blockee = $1)
+    ) AS is_blocked
+  `;
 
   try {
     const client = await pool.connect();
 
-    await client.query(sql, [friendeeEmail, frienderEmail]);
+    const blockCheckResult = await client.query(sql, [frienderEmail, friendeeEmail]);
+  
+    if (blockCheckResult.rows[0].is_blocked) {
+      client.release();
+      return res.status(403).json({ message: "Cannot friend user"})
+    }
+
+    const insertSql = `INSERT INTO FRIENDS (friendee, friender) VALUES ($1, $2)`;
+
+    await client.query(insertSql, [friendeeEmail, frienderEmail]);
 
     client.release();
 
@@ -1416,7 +1445,7 @@ const unfriendUser = async (req, res, next) => {
       return res.status(404).json({ message: "Friendship not found" });
     }
 
-    return res.status(200).json({ message: "User unfriended successfully" });
+    return res.status(201).json({ message: "User unfriended successfully" });
   } catch (error) {
     console.error("Error unfriending user:", error.stack);
     return res.status(500).json({ message: "Server error, try again" });
@@ -1554,8 +1583,12 @@ const muteUser = async(req, res, next) => {
 
 const unmuteUser = async (req, res, next) => {
   console.log('unmute user hit');
+  console.log(req.query.muterEmail);
+  console.log(req.query.muteeEmail);
 
-  const { muterEmail, muteeEmail } = req.query;
+  const muterEmail = req.query.muterEmail;
+  const muteeEmail = req.query.muteeEmail;
+  
 
   const sql = 'DELETE FROM MUTES WHERE muter = $1 AND mutee = $2';
 
@@ -1570,7 +1603,7 @@ const unmuteUser = async (req, res, next) => {
       return res.status(404).json({ message: "Mute relationship not found" });
     }
 
-    return res.status(200).json({ message: "User unmuted successfully" });
+    return res.status(201).json({ message: "User unmuted successfully" });
   } catch (error) {
     console.error("Error unmuting user:". error.stack);
     return res.status(500).json({ message: "Server error, try again "});
@@ -1590,7 +1623,7 @@ const getMuteList = async (req, res, next) => {
 
     client.release();
 
-    return res.status(200).json({ data: result.rows });
+    return res.status(201).json({ data: result.rows });
   } catch (error) {
     console.error("Error getting muted users:", error.stack);
     return res.status(500).json({ message: error.stack });
@@ -1617,6 +1650,74 @@ const checkIfMuted = async (req, res, next) => {
   }
 };
 
+const blockUser = async(req, res, next) => {
+  console.log('block user hit');
+  const { blockeeEmail, blockerEmail} = req.body;
+
+  const sql = 'INSERT INTO blocks (blocker, blockee) VALUES ($1, $2)';
+
+  try {
+    const client = await pool.connect();
+
+    await client.query(sql, [blockerEmail, blockeeEmail]);
+
+    client.release();
+
+    return res.status(201).json({ message: "User blocked successfully" });
+  } catch(error) {
+    console.error("Error executing blockUser query:", error.stack);
+    return res.status(500).json({ message: "Server error, try again" });
+  }
+};
+
+const unblockUser = async (req, res, next) => {
+  console.log('unblock user hit');
+  console.log(req.query.blockerEmail);
+  console.log(req.query.blockeeEmail);
+
+  const blockerEmail = req.query.blockerEmail;
+  const blockeeEmail = req.query.blockeeEmail;
+  
+
+  const sql = 'DELETE FROM blocks WHERE blocker = $1 AND blockee = $2';
+
+  try {
+    const client = await pool.connect();
+
+    const result = await client.query(sql, [blockerEmail, blockeeEmail]);
+
+    client.release();
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Block relationship not found" });
+    }
+
+    return res.status(201).json({ message: "User unblocked successfully" });
+  } catch (error) {
+    console.error("Error unblocking user:". error.stack);
+    return res.status(500).json({ message: "Server error, try again "});
+  }
+};
+
+const checkIfBlocked = async (req, res, next) => {
+  console.log('check if blocked hit');
+  const { blockerEmail, blockeeEmail } = req.query;
+
+  const sql = 'SELECT * FROM blocks WHERE blocker = $1 AND blockee = $2';
+
+  try {
+    const client = await pool.connect();
+
+    const result = await client.query(sql, [blockerEmail, blockeeEmail]);
+
+    client.release();
+
+    return res.status(200).json({ data: result.rows });
+  } catch (error) {
+    console.error("Error checking if user is blocked:", error.stack);
+    return res.status(500).json({ message: error.stack });
+  }
+};
 
 const getTest = (req, res, next) => {
   const sql = 'SELECT * FROM USERS';
@@ -1686,5 +1787,8 @@ export {
   muteUser,
   unmuteUser,
   getMuteList,
-  checkIfMuted
+  checkIfMuted,
+  blockUser,
+  unblockUser,
+  checkIfBlocked
 };

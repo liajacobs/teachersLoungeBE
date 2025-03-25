@@ -55,7 +55,10 @@ import {
   muteUser,
   unmuteUser,
   getMuteList,
-  checkIfMuted
+  checkIfMuted,
+  blockUser,
+  unblockUser,
+  checkIfBlocked
 } from "./dbLogic.js";
 
 const router = express.Router();
@@ -135,6 +138,11 @@ router.post("/muteUser", muteUser);
 router.delete("/unmuteUser", unmuteUser);
 router.get("/getMuteList", getMuteList);
 router.get("/checkIfMuted", checkIfMuted)
+
+// Blocking Routes
+router.post("/blockUser", blockUser);
+router.delete("/unblockUser", unblockUser);
+router.get("/checkIfBlocked", checkIfBlocked);
 
 // Test Route
 router.get("/getTest", getTest);
