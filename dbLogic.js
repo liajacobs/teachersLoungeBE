@@ -1108,6 +1108,7 @@ const getCommentByCommentID = async (req, res, next) => {
 };
 
 const getCommentsByPostID = async (req, res, next) => {
+  console.log('getCommentByPostID hit');
 
   const postId = Number(req.query.postId);
 
