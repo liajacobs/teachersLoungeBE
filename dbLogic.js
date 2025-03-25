@@ -353,6 +353,7 @@ const updateUserInfo = async (req, res, next) => {
         { table: "conversation_members", column: "email" },
         { table: "community_members", column: "email" },
         { table: "friends", columns: ["friender", "friendee"] },
+        { table: "mutes", columns: ["muter", "mutee"] },
         { table: "message", column: "sender" },
         { table: "post", column: "email" },
         { table: "post_likes", column: "email" },
@@ -1411,7 +1412,90 @@ const getPendingFriendRequests = async (req, res, next) => {
   }
 };
 
+const muteUser = async(req, res, next) => {
+  console.log('mute user hit');
+  const { muteeEmail, muterEmail} = req.body;
 
+  const sql = 'INSERT INTO MUTES (muter, mutee) VALUES ($1, $2)';
+
+  try {
+    const client = await pool.connect();
+
+    await client.query(sql, [muterEmail, muteeEmail]);
+
+    client.release();
+
+    return res.status(201).json({ message: "User muted successfully" });
+  } catch(error) {
+    console.error("Error executing muteUser query:", error.stack);
+    return res.status(500).json({ message: "Server error, try again" });
+  }
+};
+
+const unmuteUser = async (req, res, next) => {
+  console.log('unmute user hit');
+
+  const { muterEmail, muteeEmail } = req.query;
+
+  const sql = 'DELETE FROM MUTES WHERE muter = $1 AND mutee = $2';
+
+  try {
+    const client = await pool.connect();
+
+    const result = await client.query(sql, [muterEmail, muteeEmail]);
+
+    client.release();
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Mute relationship not found" });
+    }
+
+    return res.status(200).json({ message: "User unmuted successfully" });
+  } catch (error) {
+    console.error("Error unmuting user:". error.stack);
+    return res.status(500).json({ message: "Server error, try again "});
+  }
+};
+
+const getMuteList = async (req, res, next) => {
+  console.log('getMuteList hit')
+  const { userEmail } = req.query;
+
+  const sql = 'SELECT u.email, u.firstname, u.lastname, u.schoolid, u.role FROM MUTES m JOIN USERS u ON m.mutee = u.email WHERE m.muter = $1';
+
+  try {
+    const client = await pool.connect();
+
+    const result = await client.query(sql, [userEmail]);
+
+    client.release();
+
+    return res.status(200).json({ data: result.rows });
+  } catch (error) {
+    console.error("Error getting muted users:", error.stack);
+    return res.status(500).json({ message: error.stack });
+  }
+};
+
+const checkIfMuted = async (req, res, next) => {
+  console.log('check if muted hit');
+  const { muterEmail, muteeEmail } = req.query;
+
+  const sql = 'SELECT * FROM mutes WHERE muter = $1 AND mutee = $2';
+
+  try {
+    const client = await pool.connect();
+
+    const result = await client.query(sql, [muterEmail, muteeEmail]);
+
+    client.release();
+
+    return res.status(200).json({ data: result.rows });
+  } catch (error) {
+    console.error("Error checking if user is muted:", error.stack);
+    return res.status(500).json({ message: error.stack });
+  }
+};
 
 
 const getTest = (req, res, next) => {
@@ -1478,5 +1562,9 @@ export {
   getSentFriendRequests,
   getPendingFriendRequests,
   getTest,
-  changeColor
+  changeColor,
+  muteUser,
+  unmuteUser,
+  getMuteList,
+  checkIfMuted
 };
