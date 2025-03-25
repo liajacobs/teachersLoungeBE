@@ -1,7 +1,9 @@
 import express from "express";
+import { upload } from "./fileManagement.js";
 import {
   createNewPost,
   getAllApprovedPosts,
+  getAllApprovedPostsByUser,
   getPendingPosts,
   getUserPosts,
   deletePost,
@@ -22,12 +24,12 @@ import {
   joinCommunity,
   leaveCommunity,
   getUserCommunities,
+  getCommunityName,
   searchUser,
   findUser,
   addComment,
   getComment,
   getCommentByCommentID,
-  addCommentToPost,
   getCommentsByPostID,
   updateComment,
   deleteComment,
@@ -74,9 +76,10 @@ router.delete("/deleteUser", deleteUser);
 //router.post("/promoteUser", promoteUser);
 
 // Post Routes
-router.post("/fileUpload", fileUpload);
+router.post("/fileUpload", upload.single('file'), fileUpload);
 router.post("/createNewPost", createNewPost);
 router.get("/getAllApprovedPosts", getAllApprovedPosts);
+router.get("/getAllApprovedPostsByUser/:username", getAllApprovedPostsByUser);
 router.get("/getPendingPosts", getPendingPosts);
 router.get("/getUserPosts", getUserPosts);
 router.delete("/deletePost", deletePost);
@@ -91,6 +94,7 @@ router.get("/getAllCommunities", getAllCommunities);
 router.post("/joinCommunity", joinCommunity);
 router.delete("/leaveCommunity", leaveCommunity);
 router.get("/getUserCommunities", getUserCommunities);
+router.get("/getCommunityName", getCommunityName);
 
 // User Search Routes
 router.get("/searchUser", searchUser);
@@ -100,7 +104,6 @@ router.get("/findUser", findUser);
 router.post("/addComment", addComment);
 router.get("/getComment", getComment);
 router.get("/getCommentByCommentID", getCommentByCommentID);
-router.post("/addCommentToPost", addCommentToPost);
 router.get("/getCommentsByPostID", getCommentsByPostID);
 router.put("/updateComment", updateComment);
 router.delete("/deleteComment", deleteComment);

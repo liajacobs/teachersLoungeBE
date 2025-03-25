@@ -1,6 +1,18 @@
 import pool from "./database.js";
 import bcrypt from "bcrypt";
 import { generateToken } from "./utils/tokenGenerator.js";
+import {s3Upload} from "./fileManagement.js";
+import multer from "multer";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+// Initialize s3 info
+const s3 = new S3Client({
+  credentials: {
+    accessKeyId: process.env.S3_ACCESS_KEY,
+    secretAccessKey: process.env.S3_SECRET_KEY,
+  },
+  region: process.env.S3_REGION,
+});
 
 //Functions to connect to DB
 const connectDB = (req, res, next) => {
@@ -76,7 +88,8 @@ const verifyUserLogin = async (req, res, next) => {
         U.password, 
         U.color,
         S.schoolname AS schoolname, 
-        U.role 
+        U.role,
+        U.profilepiclink
       FROM USERS AS U
       INNER JOIN SCHOOL AS S ON U.schoolid = S.schoolid
       WHERE U.email = $1
@@ -106,6 +119,7 @@ const verifyUserLogin = async (req, res, next) => {
           SchoolName: user.schoolname, // Use schoolname instead of schoolid
           Role: user.role,
           color: user.color,
+          ProfilePicLink: user.profilepiclink
         },
         token: token,
       });
@@ -461,7 +475,7 @@ const deletePost = async (req, res, next) => {
     await pool.query(deleteLikesSql, [req.body.id]);
 
     // Delete comments associated with the post
-    const deleteCommentsSql = "DELETE FROM COMMENTS_TO_POST WHERE postid = $1";
+    const deleteCommentsSql = "DELETE FROM COMMENT WHERE postid = $1";
     await pool.query(deleteCommentsSql, [req.body.id]);
 
     // Delete the post itself
@@ -504,11 +518,46 @@ const getUserPosts = async (req, res, next) => {
 };
 
 // Get all approved posts
+// const getAllApprovedPosts = async (req, res, next) => {
+//   console.log('getAllApprovedPosts hit')
+//   try {
+//     const sql = "SELECT * FROM POST WHERE approved = $1";
+//     const results = await pool.query(sql, [1]); // 1 for approved posts
+
+//     return res.status(200).json({ data: results.rows });
+//   } catch (error) {
+//     console.error(error.stack);
+//     return res.status(500).json({ message: "Server error, try again" });
+//   }
+// };
+// Get all approved posts with likes and comments count
 const getAllApprovedPosts = async (req, res, next) => {
-  console.log('getAllApprovedPosts hit')
+  console.log('getAllApprovedPosts hit');
   try {
-    const sql = "SELECT * FROM POST WHERE approved = $1";
+    const sql = `
+      SELECT p.*, 
+             c.communityname, 
+             COALESCE(COUNT(pl.postid), 0) AS likescount, 
+             COALESCE(cmt.commentscount, 0) AS commentscount
+      FROM POST p
+      LEFT JOIN COMMUNITY c ON p.communityid = c.communityid
+      LEFT JOIN POST_LIKES pl ON p.postid = pl.postid
+      LEFT JOIN (
+        SELECT postid, COUNT(*) AS commentscount
+        FROM COMMENT
+        GROUP BY postid
+      ) cmt ON p.postid = cmt.postid
+      WHERE p.approved = $1
+      GROUP BY p.postid, c.communityname, cmt.commentscount
+    `;
+
     const results = await pool.query(sql, [1]); // 1 for approved posts
+
+    if (results.rows.length === 0) {
+      return res.status(200).json({ data: [] });
+    }
+
+    console.log(results.rows)
 
     return res.status(200).json({ data: results.rows });
   } catch (error) {
@@ -517,20 +566,132 @@ const getAllApprovedPosts = async (req, res, next) => {
   }
 };
 
-
+/* Thinking this was used for when they tried to put images into the render database
 const fileUpload = async (req, res, next) => {
   console.log('File upload hit');
   console.log(req.body)
 
   try {
+    const sql = ""
     const result = await pool.query(sql, values);
     return res.status(200).json({ data: result.rows[0] });
   } catch (error) {
     console.error(error.stack);
     return res.status(500).json({ message: error.stack });
   }
+};*/
+
+const fileUpload = async (req, res) => {
+
+  // Output info about the recieved request
+  //console.log('File upload hit');
+  //console.log(req.body.name);
+
+  const file = req.file;
+    
+  // Log file
+  console.log("\nFile: " + file + "\n");
+
+  // Name file with timestamp
+  const fileLoc = "uploads/" + file.originalname.split(' ').join('_');
+
+  // Set up parameters for S3 upload
+  const params = {
+    Bucket: process.env.S3_BUCKET,
+    Body: file.buffer,
+    Key: fileLoc,
+    ContentType: file.mimetype
+  };
+
+  // Upload file to S3
+  console.log("Putting object in S3 with params: ", params);
+  const command = new PutObjectCommand(params);
+    
+  await s3.send(command);
+
+  try {
+    await s3.send(command);
+    res.status(200).send({ message: 'Upload was successful!', bucket: process.env.S3_BUCKET, file: fileLoc });
+    console.log("File uploaded successfully: " + process.env.S3_BUCKET + "/" + fileLoc);
+
+    // If it's a profile picture
+    if (req.body.isProfilePic) {
+      // Update the profilePicUrl in the database for the current user
+
+      // Log email to make sure it's for the logged in user
+      console.log("About to update profile picture for user: " + req.body.email);
+    
+      // Update the profilePicUrl in the database for the current user
+      const sql = "UPDATE USERS SET profilepiclink = $1 WHERE email = $2";
+      const values = [`https://${process.env.S3_BUCKET}.s3.us-east-2.amazonaws.com/${fileLoc}`, req.body.email];
+      await pool.query(sql, values);
+
+      // Log success
+      console.log("Profile picture updated successfully for user: " + req.body.email);
+    }
+
+    return `https://${process.env.S3_BUCKET}.s3.${process.env.S3_REGION}.amazonaws.com/${fileLoc}`; // Return the file URL
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'File upload failed', error: error.message });
+  }
+
+  /*try {
+    const fileUrl = await s3Upload(req, res);
+    req.body.fileurl = fileUrl; // Set the fileUrl in the request body
+    return res.status(200).json({ message: 'File uploaded successfully', fileUrl: fileUrl });
+  } catch (error) {
+    console.error(error);
+    //return res.status(500).json({ message: 'File upload failed', error: error.message });
+    return null;
+  }*/
 };
+
+const getAllApprovedPostsByUser = async (req, res, next) => {
+  console.log('getAllApprovedPostsByUser hit');
+
+  const { username } = req.params; // This grabs the username from the URL parameter
+
+  if (!username) {
+    return res.status(400).json({ message: "Username is required" });
+  }
+
+  try {
+    const sql = `
+      SELECT p.*, 
+             c.communityname, 
+             COALESCE(COUNT(pl.postid), 0) AS likescount, 
+             COALESCE(cmt.commentscount, 0) AS commentscount
+      FROM POST p
+      LEFT JOIN COMMUNITY c ON p.communityid = c.communityid
+      LEFT JOIN POST_LIKES pl ON p.postid = pl.postid
+      LEFT JOIN (
+        SELECT postid, COUNT(*) AS commentscount
+        FROM COMMENT
+        GROUP BY postid
+      ) cmt ON p.postid = cmt.postid
+      WHERE p.approved = $1 
+        AND p.email = $2  -- Filter posts based on the username (which is the email)
+      GROUP BY p.postid, c.communityname, cmt.commentscount
+    `;
+
+    const results = await pool.query(sql, [1, username]); // Fetch posts by username (email)
+
+    if (results.rows.length === 0) {
+      return res.status(200).json({ data: [] });
+    }
+
+    console.log(results.rows);
+    return res.status(200).json({ data: results.rows });
+  } catch (error) {
+    console.error(error.stack);
+    return res.status(500).json({ message: "Server error, try again" });
+  }
+};
+
 //Database functionality with likes and comments has not been implemented yet but these functions are how we imagine that would happen...
+  
 // Create a new post
 const createNewPost = async (req, res, next) => {
   console.log('create new post hit');
@@ -549,7 +710,7 @@ const createNewPost = async (req, res, next) => {
   const values = [
     req.body.content,
     req.body.email,
-    req.body.fileurl,
+    req.body.fileUrl,
     req.body.filedisplayname,
     req.body.filetype,
     req.body.approved || 1, // Default to approved
@@ -614,16 +775,16 @@ const getPostLikes = async (req, res, next) => {
 
 // Check if user already liked the post
 const checkLikedPost = async (req, res, next) => {
-  console.log("checkLikedPost hit"); 
+  console.log("checkLikedPost hit");
   const sql =
     "SELECT EXISTS(SELECT 1 FROM POST_LIKES WHERE PostID=$1 AND Email=$2) AS exists";
   const values = [req.body.postId, req.body.userEmail];
 
-  console.log("Received request with:", values); 
+  console.log("Received request with:", values);
 
   try {
     const results = await pool.query(sql, values);
-    console.log("Query executed, results:", results.rows); 
+    console.log("Query executed, results:", results.rows);
 
     if (results.rows[0].exists) {
       console.log("Post is already liked! Returning 409.");
@@ -641,56 +802,6 @@ const checkLikedPost = async (req, res, next) => {
 };
 
 
-// Get comments for a post
-const getPostComments = async (req, res, next) => {
-  const sql = "SELECT * FROM COMMENTS_TO_POST WHERE PostID = $1";
-  const values = [req.body.postId];
-
-  try {
-    const results = await pool.query(sql, values);
-    return res.status(200).json({ data: results.rows });
-  } catch (error) {
-    console.error(error.stack);
-    return res.status(500).json({ message: error.stack });
-  }
-};
-/*
-const createNewCommunity = (req, res, next) => {
-  let sql =
-    "SELECT * FROM COMMUNITY WHERE CommunityName = '" +
-    req.body.communityName +
-    "';";
-
-  // Check if community exists
-  pool.query(sql, function (error, results) {
-    // Return error if any
-    if (error) {
-      return res.status(500).json({ message: "Server error, try again" });
-    }
-
-    // Create community if it doesn't exist
-    if (results[0] == null) {
-      sql =
-        "INSERT INTO COMMUNITY(CommunityName) VALUES (" +
-        connection.escape(req.body.communityName) +
-        ")";
-
-      // Run insert query
-      pool.query(sql, function (error, results) {
-        // Return error if any
-        if (error) {
-          return res.status(500).json({ message: "Server error, try again" });
-        }
-
-        return res
-          .status(201)
-          .json({ message: "Community created successfully" });
-      });
-    } else {
-      return res.status(500).json({ message: "Community already exists!" });
-    }
-  });
-}; */
 const createNewCommunity = (req, res, next) => {
   console.log('create new community hit');
   const sql = "SELECT * FROM COMMUNITY WHERE communityname = $1";
@@ -802,14 +913,32 @@ const getCommunityApprovedPosts = async (req, res, next) => {
   const { communityID } = req.query;
 
   const sql = `
-      SELECT * 
-      FROM POST 
-      WHERE communityid = $1 AND approved = 1`
+    SELECT p.*, 
+           c.communityname, 
+           COALESCE(COUNT(pl.postid), 0) AS likescount, 
+           COALESCE(cmt.commentscount, 0) AS commentscount
+    FROM POST p
+    LEFT JOIN COMMUNITY c ON p.communityid = c.communityid
+    LEFT JOIN POST_LIKES pl ON p.postid = pl.postid
+    LEFT JOIN (
+      SELECT postid, COUNT(*) AS commentscount
+      FROM COMMENT
+      GROUP BY postid
+    ) cmt ON p.postid = cmt.postid
+    WHERE p.communityid = $1 AND p.approved = 1
+    GROUP BY p.postid, c.communityname, cmt.commentscount
+  `;
 
   const values = [communityID];
 
   try {
     const result = await pool.query(sql, values);
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({ data: [] });
+    }
+
+    console.log(result.rows);
     return res.status(200).json({ data: result.rows });
   } catch (error) {
     console.error('Error fetching community posts:', error.stack);
@@ -843,6 +972,30 @@ const createNewCommunityPost = async (req, res, next) => {
     return res.status(500).json({ message: 'Failed to create community post.', error: error.message });
   }
 };
+
+const getCommunityName = async (req, res) => {
+  const { communityId } = req.query;
+
+  if (!communityId) {
+    return res.status(400).json({ error: "communityId is required" });
+  }
+
+  try {
+    const [result] = await db.execute(
+      "SELECT communityname FROM COMMUNITY WHERE communityid = ?",
+      [communityId]
+    );
+
+    if (result.length === 0) {
+      return res.status(404).json({ error: "Community not found" });
+    }
+
+    res.json({ communityName: result[0].communityname });
+  } catch (error) {
+    console.error("Error fetching community name:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+}
 
 // Searches for a user
 const searchUser = async (req, res, next) => {
@@ -951,23 +1104,6 @@ const getCommentByCommentID = async (req, res, next) => {
   }
 };
 
-const addCommentToPost = async (req, res, next) => {
-  console.log('addCommentToPost hit');
-  const sql = `
-    INSERT INTO COMMENTS_TO_POST (Email, CommentId, PostId)
-    VALUES ($1, $2, $3)
-    RETURNING *`;
-  const values = [req.body.email, req.body.commentId, req.body.postId];
-
-  try {
-    const results = await pool.query(sql, values);
-    return res.status(200).json({ data: results.rows[0] });
-  } catch (error) {
-    console.error('Error adding comment to post:', error.stack);
-    return res.status(500).json({ message: 'Server error, try again' });
-  }
-};
-
 const getCommentsByPostID = async (req, res, next) => {
 
   const postId = Number(req.query.postId);
@@ -975,23 +1111,6 @@ const getCommentsByPostID = async (req, res, next) => {
   if (isNaN(postId)) {
     return res.status(400).json({ message: 'Invalid postId' });
   }
-/*
-  const sql = `
-    SELECT 
-        c.content,
-        c.email,
-        c."time",
-        ctp.postid
-    FROM 
-        comments_to_post AS ctp
-    JOIN 
-        comment AS c
-    ON 
-        ctp.commentid = c.id
-    WHERE 
-        ctp.postid = $1;
-  `;
-  */
   const sql = `
     SELECT 
         *
@@ -1206,7 +1325,8 @@ const getUserInfo = async (req, res, next) => {
       U.firstname, 
       U.lastname, 
       S.schoolname, 
-      U.role 
+      U.role,
+      U.profilepiclink
     FROM USERS AS U
     INNER JOIN SCHOOL AS S ON U.schoolid = S.schoolid
     WHERE U.email = $1;
@@ -1524,7 +1644,6 @@ export {
   verifyUserLogin,
   registerNewUser,
   getUserPosts,
-  getPostComments,
   getPostLikes,
   likePost,
   unlikePost,
@@ -1533,6 +1652,7 @@ export {
   createNewPost,
   fileUpload,
   getAllApprovedPosts,
+  getAllApprovedPostsByUser,
   createNewCommunity,
   getAllCommunities,
   joinCommunity,
@@ -1540,12 +1660,12 @@ export {
   getUserCommunities,
   getCommunityApprovedPosts,
   createNewCommunityPost,
+  getCommunityName,
   searchUser,
   findUser,
   addComment,
   getComment,
   getCommentByCommentID,
-  addCommentToPost,
   getCommentsByPostID,
   updateComment,
   deleteComment,
