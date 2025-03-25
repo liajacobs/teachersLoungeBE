@@ -1554,8 +1554,12 @@ const muteUser = async(req, res, next) => {
 
 const unmuteUser = async (req, res, next) => {
   console.log('unmute user hit');
+  console.log(req.query.muterEmail);
+  console.log(req.query.muteeEmail);
 
-  const { muterEmail, muteeEmail } = req.query;
+  const muterEmail = req.query.muterEmail;
+  const muteeEmail = req.query.muteeEmail;
+  
 
   const sql = 'DELETE FROM MUTES WHERE muter = $1 AND mutee = $2';
 
