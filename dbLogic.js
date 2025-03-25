@@ -1635,6 +1635,74 @@ const checkIfMuted = async (req, res, next) => {
   }
 };
 
+const blockUser = async(req, res, next) => {
+  console.log('block user hit');
+  const { blockeeEmail, blockerEmail} = req.body;
+
+  const sql = 'INSERT INTO blocks (blocker, blockee) VALUES ($1, $2)';
+
+  try {
+    const client = await pool.connect();
+
+    await client.query(sql, [blockerEmail, blockeeEmail]);
+
+    client.release();
+
+    return res.status(201).json({ message: "User blocked successfully" });
+  } catch(error) {
+    console.error("Error executing blockUser query:", error.stack);
+    return res.status(500).json({ message: "Server error, try again" });
+  }
+};
+
+const unblockUser = async (req, res, next) => {
+  console.log('unblock user hit');
+  console.log(req.query.blockerEmail);
+  console.log(req.query.blockeeEmail);
+
+  const blockerEmail = req.query.blockerEmail;
+  const blockeeEmail = req.query.blockeeEmail;
+  
+
+  const sql = 'DELETE FROM blocks WHERE blocker = $1 AND blockee = $2';
+
+  try {
+    const client = await pool.connect();
+
+    const result = await client.query(sql, [blockerEmail, blockeeEmail]);
+
+    client.release();
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Block relationship not found" });
+    }
+
+    return res.status(201).json({ message: "User unblocked successfully" });
+  } catch (error) {
+    console.error("Error unmuting user:". error.stack);
+    return res.status(500).json({ message: "Server error, try again "});
+  }
+};
+
+const checkIfBlocked = async (req, res, next) => {
+  console.log('check if blocked hit');
+  const { blockerEmail, blockeeEmail } = req.query;
+
+  const sql = 'SELECT * FROM blocks WHERE blocker = $1 AND blockee = $2';
+
+  try {
+    const client = await pool.connect();
+
+    const result = await client.query(sql, [blockerEmail, blockeeEmail]);
+
+    client.release();
+
+    return res.status(200).json({ data: result.rows });
+  } catch (error) {
+    console.error("Error checking if user is blocked:", error.stack);
+    return res.status(500).json({ message: error.stack });
+  }
+};
 
 const getTest = (req, res, next) => {
   const sql = 'SELECT * FROM USERS';
@@ -1704,5 +1772,8 @@ export {
   muteUser,
   unmuteUser,
   getMuteList,
-  checkIfMuted
+  checkIfMuted,
+  blockUser,
+  unblockUser,
+  checkIfBlocked
 };
