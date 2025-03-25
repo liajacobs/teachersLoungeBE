@@ -534,6 +534,8 @@ const getUserPosts = async (req, res, next) => {
 const getAllApprovedPosts = async (req, res, next) => {
   console.log('getAllApprovedPosts hit');
   try {
+    const userEmail = req.query.userEmail;
+
     const sql = `
       SELECT p.*, 
              c.communityname, 
@@ -547,11 +549,12 @@ const getAllApprovedPosts = async (req, res, next) => {
         FROM COMMENT
         GROUP BY postid
       ) cmt ON p.postid = cmt.postid
-      WHERE p.approved = $1
+      LEFT JOIN mutes m ON (m.muter = $2 AND m.mutee = p.email)
+      WHERE p.approved = $1 AND m.muter IS NULL
       GROUP BY p.postid, c.communityname, cmt.commentscount
     `;
 
-    const results = await pool.query(sql, [1]); // 1 for approved posts
+    const results = await pool.query(sql, [1, userEmail]); // 1 for approved posts
 
     if (results.rows.length === 0) {
       return res.status(200).json({ data: [] });
