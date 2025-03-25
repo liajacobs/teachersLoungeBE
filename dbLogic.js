@@ -1131,7 +1131,7 @@ const getCommentsByPostID = async (req, res, next) => {
 
   try {
     const results = await pool.query(sql, [postId, userEmail]);
-    return res.status(200).json({ data: results.rows });
+    return res.status(201).json({ data: results.rows });
   } catch (error) {
     console.error('Error fetching comments by post ID:', error.stack);
     return res.status(500).json({ message: 'Server error, try again' });
