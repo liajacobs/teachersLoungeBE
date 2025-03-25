@@ -564,6 +564,49 @@ const fileUpload = async (req, res, next) => {
   }
 };
 
+const getAllApprovedPostsByUser = async (req, res, next) => {
+  console.log('getAllApprovedPostsByUser hit');
+
+  const { username } = req.params; // This grabs the username from the URL parameter
+
+  if (!username) {
+    return res.status(400).json({ message: "Username is required" });
+  }
+
+  try {
+    const sql = `
+      SELECT p.*, 
+             c.communityname, 
+             COALESCE(COUNT(pl.postid), 0) AS likescount, 
+             COALESCE(cmt.commentscount, 0) AS commentscount
+      FROM POST p
+      LEFT JOIN COMMUNITY c ON p.communityid = c.communityid
+      LEFT JOIN POST_LIKES pl ON p.postid = pl.postid
+      LEFT JOIN (
+        SELECT postid, COUNT(*) AS commentscount
+        FROM COMMENT
+        GROUP BY postid
+      ) cmt ON p.postid = cmt.postid
+      WHERE p.approved = $1 
+        AND p.email = $2  -- Filter posts based on the username (which is the email)
+      GROUP BY p.postid, c.communityname, cmt.commentscount
+    `;
+
+    const results = await pool.query(sql, [1, username]); // Fetch posts by username (email)
+
+    if (results.rows.length === 0) {
+      return res.status(200).json({ data: [] });
+    }
+
+    console.log(results.rows);
+    return res.status(200).json({ data: results.rows });
+  } catch (error) {
+    console.error(error.stack);
+    return res.status(500).json({ message: "Server error, try again" });
+  }
+};
+
+
 // Create a new post
 const createNewPost = async (req, res, next) => {
   console.log('create new post hit');
@@ -1440,6 +1483,7 @@ export {
   createNewPost,
   fileUpload,
   getAllApprovedPosts,
+  getAllApprovedPostsByUser,
   createNewCommunity,
   getAllCommunities,
   joinCommunity,

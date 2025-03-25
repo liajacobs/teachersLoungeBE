@@ -2,6 +2,7 @@ import express from "express";
 import {
   createNewPost,
   getAllApprovedPosts,
+  getAllApprovedPostsByUser,
   getPendingPosts,
   getUserPosts,
   deletePost,
@@ -73,6 +74,7 @@ router.delete("/deleteUser", deleteUser);
 router.post("/fileUpload", fileUpload);
 router.post("/createNewPost", createNewPost);
 router.get("/getAllApprovedPosts", getAllApprovedPosts);
+router.get("/getAllApprovedPostsByUser/:username", getAllApprovedPostsByUser);
 router.get("/getPendingPosts", getPendingPosts);
 router.get("/getUserPosts", getUserPosts);
 router.delete("/deletePost", deletePost);
