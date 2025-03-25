@@ -1124,7 +1124,7 @@ const getCommentsByPostID = async (req, res, next) => {
     LEFT JOIN
         mutes m ON (m.muter = $2 AND m.mutee = c.email)
     WHERE 
-        postid = $1
+        c.postid = $1
         AND m.muter IS NULL
   `;
 
