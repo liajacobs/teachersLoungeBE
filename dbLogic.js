@@ -96,7 +96,7 @@ const verifyUserLogin = async (req, res, next) => {
       }
 
       // Generate token and return response with schoolname
-      const token = generateToken(req.body.username);
+      const token = generateToken(req.body.username, user.role);
       return res.status(200).json({
         message: "User logged in successfully",
         user: {

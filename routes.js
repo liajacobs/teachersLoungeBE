@@ -1,4 +1,5 @@
 import express from "express";
+import { userAuth, verifyAdmin, verifyAdminOrOwner } from './middleware/authMiddleware.js';
 import {
   createNewPost,
   getAllApprovedPosts,
@@ -75,14 +76,15 @@ router.post("/createNewPost", createNewPost);
 router.get("/getAllApprovedPosts", getAllApprovedPosts);
 router.get("/getPendingPosts", getPendingPosts);
 router.get("/getUserPosts", getUserPosts);
-router.delete("/deletePost", deletePost);
+//router.delete("/deletePost", deletePost);
+router.delete("/deletePost/:postId", userAuth, verifyAdminOrOwner, deletePost);
 
 // Community Post Routes
 router.post("/createNewCommunityPost", createNewCommunityPost);
 router.get("/getCommunityApprovedPosts", getCommunityApprovedPosts);
 
 // Community Management Routes
-router.post("/createNewCommunity", createNewCommunity); // Assuming this was implemented as per dbLogic.js
+router.post("/createNewCommunity", createNewCommunity);
 router.get("/getAllCommunities", getAllCommunities);
 router.post("/joinCommunity", joinCommunity);
 router.delete("/leaveCommunity", leaveCommunity);

@@ -53,7 +53,7 @@ const userAuth = async (req, res, next) => {
   const tokenValue = token.split(' ')[1];
 
   try {
-    const { email } = jwt.verify(tokenValue, process.env.JWT_SECRET);
+    const { email, role } = jwt.verify(tokenValue, process.env.JWT_SECRET);
 
     // Perform the database query to find the user by email in the users table
     connection.query('SELECT * FROM users WHERE email = $1', [email], function (error, results) {
@@ -67,6 +67,7 @@ const userAuth = async (req, res, next) => {
       }
 
       req.userEmail = email;
+      req.userRole = role;
       next();
     });
   } catch (err) {
@@ -74,5 +75,36 @@ const userAuth = async (req, res, next) => {
   }
 };
 
-export { userAuth };
+const verifyAdmin = (req, res, next) => {
+  if (req.userRole !== 'Admin') {
+    return res.status(403).json({ message: 'Admin role required' });
+  }
+  next();
+};
+
+const verifyAdminOrOwner = (req, res, next) => {
+  const postId = req.params.postId;
+
+  // Query to find the post by ID and check the owner
+  connection.query('SELECT * FROM posts WHERE id = $1', [postId], function (error, results) {
+    if (error) {
+      console.error(error.stack);
+      return res.status(500).json({ message: "Server error: " + error.stack });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    const post = results[0];
+
+    
+    if (req.userRole === 'Admin' || post.ownerEmail === req.userEmail) {
+      next();
+    } else {
+      return res.status(403).json({ message: "You are not authorized to delete this post" });
+    }
+  });
+};
+export { userAuth, verifyAdmin, verifyAdminOrOwner };
 
