@@ -38,6 +38,8 @@ import {
   sendMessage,
   getMessages,
   getLastMessage,
+  getConversationDetails,
+  updateConversationTitle,
   getUserInfo,
   checkIfFriended,
   friendUser,
@@ -117,6 +119,8 @@ router.get("/getConversations", getConversations);
 router.post("/sendMessage", sendMessage);
 router.get("/getMessages", getMessages);
 router.get("/getLastMessage", getLastMessage);
+router.get("/getConversationDetails", getConversationDetails);
+router.post("/updateConversationTitle", updateConversationTitle);
 
 // Friend Routes
 router.get("/getUserInfo", getUserInfo);
