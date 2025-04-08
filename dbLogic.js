@@ -1,7 +1,7 @@
 import pool from "./database.js";
 import bcrypt from "bcrypt";
 import { generateToken } from "./utils/tokenGenerator.js";
-import {s3Upload} from "./fileManagement.js";
+import { s3Upload } from "./fileManagement.js";
 import multer from "multer";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
@@ -591,7 +591,7 @@ const fileUpload = async (req, res) => {
   //console.log(req.body.name);
 
   const file = req.file;
-    
+
   // Log file
   console.log("\nFile: " + file + "\n");
 
@@ -609,7 +609,7 @@ const fileUpload = async (req, res) => {
   // Upload file to S3
   console.log("Putting object in S3 with params: ", params);
   const command = new PutObjectCommand(params);
-    
+
   await s3.send(command);
 
   try {
@@ -623,7 +623,7 @@ const fileUpload = async (req, res) => {
 
       // Log email to make sure it's for the logged in user
       console.log("About to update profile picture for user: " + req.body.email);
-    
+
       // Update the profilePicUrl in the database for the current user
       const sql = "UPDATE USERS SET profilepiclink = $1 WHERE email = $2";
       const values = [`https://${process.env.S3_BUCKET}.s3.us-east-2.amazonaws.com/${fileLoc}`, req.body.email];
@@ -694,7 +694,7 @@ const getAllApprovedPostsByUser = async (req, res, next) => {
 };
 
 //Database functionality with likes and comments has not been implemented yet but these functions are how we imagine that would happen...
-  
+
 // Create a new post
 const createNewPost = async (req, res, next) => {
   console.log('create new post hit');
@@ -1171,50 +1171,48 @@ const deleteComment = async (req, res, next) => {
   }
 };
 
-// Creates a new conversation
+//Create conversations with title and members
 const createConversation = async (req, res, next) => {
-  // Get sender and receiver email
-  const senderEmail = req.body.senderEmail;
-  const receiverEmail = req.body.receiverEmail;
+  const members = req.body.members;
+  const title = req.body.title;
 
   try {
-    // Check if conversation already exists
-    const checkConversationSql = `SELECT *
-                                  FROM CONVERSATION_MEMBERS cm1
-                                  JOIN CONVERSATION_MEMBERS cm2 ON cm1.ConversationID = cm2.ConversationID
-                                  WHERE cm1.Email = $1 AND cm2.Email = $2;`;
+    // Check if conversation with the exact same members already exists
+    const checkSql = `
+      SELECT conversationid
+      FROM conversation
+      WHERE members @> $1 AND members <@ $1
+    `;
+    const checkResult = await pool.query(checkSql, [members]);
 
-    const existingConversation = await pool.query(checkConversationSql, [senderEmail, receiverEmail]);
-
-    if (existingConversation.rows.length > 0) {
+    if (checkResult.rows.length > 0) {
       return res.status(400).json({ message: "Conversation already exists" });
     }
 
-    // Create new conversation
-    const createConversationSql = `INSERT INTO CONVERSATION(Title) 
-                                   VALUES ('Default Conversation') RETURNING ConversationID;`;
+    // Use provided title or default to comma-separated member list
+    const conversationTitle = title || members.join(", ");
 
-    const newConversation = await pool.query(createConversationSql);
-    const conversationId = newConversation.rows[0].conversationid;
+    // Insert new conversation
+    const insertSql = `
+      INSERT INTO conversation (title, members)
+      VALUES ($1, $2)
+      RETURNING conversationid
+    `;
+    const insertResult = await pool.query(insertSql, [conversationTitle, members]);
 
-    // Insert 1st member of conversation
-    const addSenderSql = `INSERT INTO CONVERSATION_MEMBERS(ConversationID, Email) 
-                          VALUES ($1, $2);`;
-    await pool.query(addSenderSql, [conversationId, senderEmail]);
+    const conversationId = insertResult.rows[0].conversationid;
 
-    // Insert 2nd member of conversation
-    const addReceiverSql = `INSERT INTO CONVERSATION_MEMBERS(ConversationID, Email) 
-                            VALUES ($1, $2);`;
-    await pool.query(addReceiverSql, [conversationId, receiverEmail]);
-
-    // Success response
-    return res.status(200).json({ message: "Conversation created successfully" });
+    return res.status(200).json({
+      message: "Conversation created successfully",
+      conversationId,
+    });
 
   } catch (error) {
-    console.error('Error creating conversation:', error);
+    console.error("Error creating conversation:", error);
     return res.status(500).json({ message: "Server error, couldn't create conversation" });
   }
 };
+
 
 
 
@@ -1225,15 +1223,9 @@ const getConversations = async (req, res, next) => {
   const userEmail = req.query.userEmail;
 
   const sql = `
-    SELECT c.conversationid, string_agg(cm.email, ',') AS members
-    FROM conversation AS c
-    LEFT JOIN conversation_members AS cm ON c.conversationid = cm.conversationid
-    WHERE c.conversationid IN (
-      SELECT conversationid
-      FROM conversation_members
-      WHERE email = $1
-    )
-    GROUP BY c.conversationid;
+    SELECT conversationid, members, title
+    FROM conversation
+    WHERE $1 = ANY(members)
   `;
 
   const client = await pool.connect();
@@ -1245,9 +1237,16 @@ const getConversations = async (req, res, next) => {
       return res.status(404).json({ message: "No conversations found" });
     }
 
-    let conversations = results.rows.map(row => {
-      let members = row.members.split(",");
-      let title = members.find(email => email !== userEmail)?.split("@")[0];
+    const conversations = results.rows.map(row => {
+      const members = row.members;
+      // Use the title if it exists, or fall back to showing the other participant's name
+      const title =
+        row.title === "Default Conversation"
+          ? members
+            .filter(email => email !== userEmail)
+            .map(email => email.split("@")[0])
+            .join(", ")
+          : row.title;
 
       return {
         conversationId: row.conversationid,
@@ -1265,13 +1264,15 @@ const getConversations = async (req, res, next) => {
   }
 };
 
+
+
 // Sends a message
 const sendMessage = async (req, res, next) => {
   const { message, conversationId, senderEmail } = req.body; // Changed conversation_Id to conversationId
 
   // SQL query using parameterized placeholders
-  const sql = `INSERT INTO MESSAGE(Content, Conversation_ID, Sender)
-               VALUES ($1, $2, $3)`;
+  const sql = `INSERT INTO MESSAGE(Content, Conversation_ID, Sender) 
+                VALUES ($1, $2, $3)`;
 
   try {
     // Using pool.query to run the SQL command with the parameters
@@ -1327,6 +1328,44 @@ const getLastMessage = async (req, res, next) => {
     return res.status(500).json({ message: "Server error, try again" });
   }
 };
+
+const getConversationDetails = async (req, res, next) => {
+  console.log('getConversationDetails hit');
+  const conversationId = Number(req.query.conversationId); // Ensure this is a number
+
+  // Use the correct column name
+  const sql = `SELECT title, members FROM conversation WHERE conversationid = $1`;
+
+  try {
+    // Pass parameters as an array
+    const result = await pool.query(sql, [conversationId]);
+    return res.status(200).json({ data: result.rows[0] });
+  } catch (error) {
+    console.error(error.stack);
+    return res.status(500).json({ message: "Server error, try again" });
+  }
+};
+
+const updateConversationTitle = async (req, res, next) => {
+  const { newTitle, conversationId } = req.body;
+
+  // SQL query using parameterized placeholders
+  const sql = `UPDATE conversation SET title = $1 WHERE conversationid = $2`;
+
+  try {
+    // Using pool.query to run the SQL command with the parameters
+    const result = await pool.query(sql, [newTitle, conversationId]);
+
+    // If the query was successful, send a success response
+    return res.status(200).json({ message: "Title Updated Successfully" });
+  } catch (error) {
+    // Log any error that occurs and send a 500 error response
+    console.error(error.stack);
+    return res.status(500).json({ message: "Server error, try again" });
+  }
+};
+
+
 
 const getUserInfo = async (req, res, next) => {
   console.log('getUserInfo hit');
@@ -1403,10 +1442,10 @@ const friendUser = async (req, res, next) => {
     const client = await pool.connect();
 
     const blockCheckResult = await client.query(sql, [frienderEmail, friendeeEmail]);
-  
+
     if (blockCheckResult.rows[0].is_blocked) {
       client.release();
-      return res.status(403).json({ message: "Cannot friend user"})
+      return res.status(403).json({ message: "Cannot friend user" })
     }
 
     const insertSql = `INSERT INTO FRIENDS (friendee, friender) VALUES ($1, $2)`;
@@ -1561,9 +1600,9 @@ const getPendingFriendRequests = async (req, res, next) => {
   }
 };
 
-const muteUser = async(req, res, next) => {
+const muteUser = async (req, res, next) => {
   console.log('mute user hit');
-  const { muteeEmail, muterEmail} = req.body;
+  const { muteeEmail, muterEmail } = req.body;
 
   const sql = 'INSERT INTO MUTES (muter, mutee) VALUES ($1, $2)';
 
@@ -1575,7 +1614,7 @@ const muteUser = async(req, res, next) => {
     client.release();
 
     return res.status(201).json({ message: "User muted successfully" });
-  } catch(error) {
+  } catch (error) {
     console.error("Error executing muteUser query:", error.stack);
     return res.status(500).json({ message: "Server error, try again" });
   }
@@ -1588,7 +1627,7 @@ const unmuteUser = async (req, res, next) => {
 
   const muterEmail = req.query.muterEmail;
   const muteeEmail = req.query.muteeEmail;
-  
+
 
   const sql = 'DELETE FROM MUTES WHERE muter = $1 AND mutee = $2';
 
@@ -1605,8 +1644,8 @@ const unmuteUser = async (req, res, next) => {
 
     return res.status(201).json({ message: "User unmuted successfully" });
   } catch (error) {
-    console.error("Error unmuting user:". error.stack);
-    return res.status(500).json({ message: "Server error, try again "});
+    console.error("Error unmuting user:".error.stack);
+    return res.status(500).json({ message: "Server error, try again " });
   }
 };
 
@@ -1650,9 +1689,9 @@ const checkIfMuted = async (req, res, next) => {
   }
 };
 
-const blockUser = async(req, res, next) => {
+const blockUser = async (req, res, next) => {
   console.log('block user hit');
-  const { blockeeEmail, blockerEmail} = req.body;
+  const { blockeeEmail, blockerEmail } = req.body;
 
   const sql = 'INSERT INTO blocks (blocker, blockee) VALUES ($1, $2)';
 
@@ -1664,7 +1703,7 @@ const blockUser = async(req, res, next) => {
     client.release();
 
     return res.status(201).json({ message: "User blocked successfully" });
-  } catch(error) {
+  } catch (error) {
     console.error("Error executing blockUser query:", error.stack);
     return res.status(500).json({ message: "Server error, try again" });
   }
@@ -1677,7 +1716,7 @@ const unblockUser = async (req, res, next) => {
 
   const blockerEmail = req.query.blockerEmail;
   const blockeeEmail = req.query.blockeeEmail;
-  
+
 
   const sql = 'DELETE FROM blocks WHERE blocker = $1 AND blockee = $2';
 
@@ -1694,8 +1733,8 @@ const unblockUser = async (req, res, next) => {
 
     return res.status(201).json({ message: "User unblocked successfully" });
   } catch (error) {
-    console.error("Error unblocking user:". error.stack);
-    return res.status(500).json({ message: "Server error, try again "});
+    console.error("Error unblocking user:".error.stack);
+    return res.status(500).json({ message: "Server error, try again " });
   }
 };
 
@@ -1775,6 +1814,8 @@ export {
   sendMessage,
   getMessages,
   getLastMessage,
+  getConversationDetails,
+  updateConversationTitle,
   getUserInfo,
   checkIfFriended,
   friendUser,
