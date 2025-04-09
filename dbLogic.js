@@ -697,6 +697,7 @@ const getAllApprovedPostsByUser = async (req, res, next) => {
 
 // Create a new post
 const createNewPost = async (req, res, next) => {
+  console.log(req.body.title)
   console.log('create new post hit');
   console.log(req.body);
 
@@ -706,11 +707,12 @@ const createNewPost = async (req, res, next) => {
   }
 
   const sql = `
-    INSERT INTO POST (content, email, fileurl, filedisplayname, filetype, approved, communityid)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO POST (title, content, email, fileurl, filedisplayname, filetype, approved, communityid)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING *`;
 
   const values = [
+    req.body.title,
     req.body.content,
     req.body.email,
     req.body.fileUrl,
@@ -790,12 +792,10 @@ const checkLikedPost = async (req, res, next) => {
     console.log("Query executed, results:", results.rows);
 
     if (results.rows[0].exists) {
-      console.log("Post is already liked! Returning 409.");
       return res
         .status(409)
         .json({ message: "You've already liked this post!" });
     } else {
-      console.log("Post is not liked yet! Returning 200.");
       return res.status(200).json({ message: "Successfully liked the post!" });
     }
   } catch (error) {
@@ -960,10 +960,11 @@ const createNewCommunityPost = async (req, res, next) => {
   console.log(req.body);
 
   const sql = `
-    INSERT INTO POST (content, email, fileurl, filedisplayname, filetype, communityid)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO POST (title, content, email, fileurl, filedisplayname, filetype, communityid)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *`;
   const values = [
+    req.body.title,
     req.body.content,
     req.body.email,
     req.body.fileUrl || null, // Handle optional file URL
