@@ -96,7 +96,7 @@ const verifyUserLogin = async (req, res, next) => {
       }
 
       // Generate token and return response with schoolname
-      const token = generateToken(req.body.username, user.role);
+      const token = generateToken(user); 
       return res.status(200).json({
         message: "User logged in successfully",
         user: {
@@ -452,20 +452,22 @@ const approvePost = async (req, res, next) => {
 
 // Delete a post
 const deletePost = async (req, res, next) => {
-  console.log('delete posts hit');
-  console.log(req.body.id);
+  const postId = req.params.postId; 
+
+  console.log("deletePost hit — ID:", postId);
+
   try {
     // Delete likes associated with the post
     const deleteLikesSql = "DELETE FROM POST_LIKES WHERE postid = $1";
-    await pool.query(deleteLikesSql, [req.body.id]);
+    await pool.query(deleteLikesSql, [postId]);
 
     // Delete comments associated with the post
     const deleteCommentsSql = "DELETE FROM COMMENTS_TO_POST WHERE postid = $1";
-    await pool.query(deleteCommentsSql, [req.body.id]);
+    await pool.query(deleteCommentsSql, [postId]);
 
     // Delete the post itself
     const deletePostSql = "DELETE FROM POST WHERE postid = $1";
-    await pool.query(deletePostSql, [req.body.id]);
+    await pool.query(deletePostSql, [postId]);
 
     return res.status(200).json({ message: "Post deleted successfully" });
   } catch (error) {
@@ -473,6 +475,7 @@ const deletePost = async (req, res, next) => {
     return res.status(500).json({ message: error.stack });
   }
 };
+
 
 // Get pending posts
 const getPendingPosts = async (req, res, next) => {
@@ -504,6 +507,7 @@ const getUserPosts = async (req, res, next) => {
 
 // Get all approved posts
 const getAllApprovedPosts = async (req, res, next) => {
+  console.log("User in route:", req.userEmail, req.userRole);
   console.log('getAllApprovedPosts hit')
   try {
     const sql = "SELECT * FROM POST WHERE approved = $1";
@@ -592,7 +596,7 @@ const unlikePost = async (req, res, next) => {
 
     return res.status(200).json({ message: "Post unliked successfully." });
   } catch (error) {
-    console.error(error.stack);
+    console.error(error.stack); 
     return res.status(500).json({ message: "Server error, try again." });
   }
 };
@@ -604,12 +608,21 @@ const getPostLikes = async (req, res, next) => {
 
   try {
     const results = await pool.query(sql, values);
-    return res.status(200).json({ likeCount: results.rows[0].likecount });
+    const count = Number(results.rows[0]?.likecount) || 0;
+
+    console.log("Post ID:", req.body.postID);
+    console.log("LIKE COUNT:", count);
+
+    return res.status(200).json({
+      likes: count 
+    });
   } catch (error) {
     console.error(error.stack);
     return res.status(500).json({ message: "Server error, try again" });
   }
 };
+
+
 
 // Check if user already liked the post
 const checkLikedPost = async (req, res, next) => {
@@ -968,7 +981,7 @@ const addCommentToPost = async (req, res, next) => {
 
 const getCommentsByPostID = async (req, res, next) => {
   console.log('getCommentsByPostID hit');
-
+  console.log("Decoded token user info:", req.userEmail, req.userRole);
   const postId = Number(req.query.postId);
 
   if (isNaN(postId)) {
@@ -1014,19 +1027,36 @@ const updateComment = async (req, res, next) => {
   }
 };
 
-const deleteComment = async (req, res, next) => {
-  console.log('deleteComment hit');
-  const sql = "DELETE FROM COMMENT WHERE CommentID = $1";
-  const values = [req.body.commentId];
+const deleteComment = async (req, res) => {
+  const { commentId } = req.params;
+  const requesterEmail = req.userEmail;
+  const requesterRole = req.userRole;
 
   try {
-    await pool.query(sql, values);
-    return res.status(200).json({ message: 'Comment deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting comment:', error.stack);
-    return res.status(500).json({ message: 'Server error, try again' });
+
+    const result = await pool.query(
+      "SELECT email FROM comment WHERE commentid = $1",
+      [commentId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    const commentOwner = result.rows[0].email;
+
+    if (requesterEmail !== commentOwner && requesterRole !== "Admin") {
+      return res.status(403).json({ error: "Not authorized to delete this comment" });
+    }
+
+    await pool.query("DELETE FROM comment WHERE commentid = $1", [commentId]);
+    res.status(200).json({ message: "Comment deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting comment:", err);
+    res.status(500).json({ error: "Server error" });
   }
 };
+;
 
 // Creates a new conversation
 const createConversation = async (req, res, next) => {
