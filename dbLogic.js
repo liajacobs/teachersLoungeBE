@@ -466,27 +466,40 @@ const approvePost = async (req, res, next) => {
   }
 };
 
-// Delete a post
 const deletePost = async (req, res, next) => {
   const postId = req.params.postId;
   console.log("deletePost hit — ID:", postId);
 
   try {
-    // Delete likes associated with the post
-    const deleteLikesSql = "DELETE FROM POST_LIKES WHERE postid = $1";
-    await pool.query(deleteLikesSql, [req.body.id]);
+    // Step 1: Get the file URL (if any)
+    const fileRes = await pool.query("SELECT fileurl FROM post WHERE postid = $1", [postId]);
+    const fileUrl = fileRes.rows[0]?.fileurl;
+    const fileKey = fileUrl?.split(".amazonaws.com/")[1]; // Get S3 key from URL
 
-    // Delete comments associated with the post
-    const deleteCommentsSql = "DELETE FROM COMMENTS_TO_POST WHERE postid = $1";
-    await pool.query(deleteCommentsSql, [postId]);
+    // Step 2: Delete the file from S3
+    if (fileKey) {
+      const deleteParams = {
+        Bucket: process.env.S3_BUCKET,
+        Key: fileKey,
+      };
 
-    // Delete the post itself
-    const deletePostSql = "DELETE FROM POST WHERE postid = $1";
-    await pool.query(deletePostSql, [req.body.id]);
+      try {
+        await s3.send(new DeleteObjectCommand(deleteParams));
+        console.log("✅ Deleted file from S3:", fileKey);
+      } catch (s3Err) {
+        console.error("❌ Failed to delete file from S3:", s3Err);
+        // Not fatal — continue deleting the post anyway
+      }
+    }
+
+    // Step 3: Delete associated likes/comments/post
+    await pool.query("DELETE FROM POST_LIKES WHERE postid = $1", [postId]);
+    await pool.query("DELETE FROM COMMENTS_TO_POST WHERE postid = $1", [postId]);
+    await pool.query("DELETE FROM POST WHERE postid = $1", [postId]);
 
     return res.status(200).json({ message: "Post and associated file deleted successfully" });
   } catch (error) {
-    console.error("Error deleting post:", error.stack);
+    console.error("🔥 Error deleting post:", error.stack);
     return res.status(500).json({ message: "Server error during deletion", error: error.stack });
   }
 };
@@ -535,7 +548,7 @@ const getUserPosts = async (req, res, next) => {
 // };
 // Get all approved posts with likes and comments count
 const getAllApprovedPosts = async (req, res, next) => {
-  console.log("User in route:", req.userEmail, req.userRole);
+  //console.log("User in route:", req.userEmail, req.userRole);
   console.log('getAllApprovedPosts hit')
   try {
     const userEmail = req.query.userEmail;
