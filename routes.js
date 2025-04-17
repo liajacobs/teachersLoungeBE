@@ -1,8 +1,10 @@
 import express from "express";
 import { userAuth, verifyAdmin, verifyAdminOrOwner,verifyAdminOrCommentOwner } from './middleware/authMiddleware.js';
+import { upload } from "./fileManagement.js";
 import {
   createNewPost,
   getAllApprovedPosts,
+  getAllApprovedPostsByUser,
   getPendingPosts,
   getUserPosts,
   deletePost,
@@ -23,12 +25,12 @@ import {
   joinCommunity,
   leaveCommunity,
   getUserCommunities,
+  getCommunityName,
   searchUser,
   findUser,
   addComment,
   getComment,
   getCommentByCommentID,
-  addCommentToPost,
   getCommentsByPostID,
   updateComment,
   deleteComment,
@@ -37,6 +39,8 @@ import {
   sendMessage,
   getMessages,
   getLastMessage,
+  getConversationDetails,
+  updateConversationTitle,
   getUserInfo,
   checkIfFriended,
   friendUser,
@@ -50,7 +54,14 @@ import {
   likePost,
   unlikePost,
   getPostLikes,
-  checkLikedPost
+  checkLikedPost,
+  muteUser,
+  unmuteUser,
+  getMuteList,
+  checkIfMuted,
+  blockUser,
+  unblockUser,
+  checkIfBlocked
 } from "./dbLogic.js";
 
 const router = express.Router();
@@ -73,44 +84,47 @@ router.delete("/deleteUser", userAuth, verifyAdminOrOwner, deleteUser);
 // router.post("/promoteUser", ...);
 
 // Post Routes
-router.post("/fileUpload", userAuth, fileUpload);
-router.post("/createNewPost", userAuth, createNewPost);
-router.get("/getAllApprovedPosts", userAuth, getAllApprovedPosts);
-router.get("/getPendingPosts", userAuth, verifyAdmin, getPendingPosts);
-router.get("/getUserPosts", userAuth, getUserPosts);
+router.post("/fileUpload", upload.single('file'), fileUpload);
+router.post("/createNewPost", createNewPost);
+router.get("/getAllApprovedPosts", getAllApprovedPosts);
+router.get("/getAllApprovedPostsByUser/:username", getAllApprovedPostsByUser);
+router.get("/getPendingPosts", getPendingPosts);
+router.get("/getUserPosts", getUserPosts);
 router.delete("/deletePost/:postId", userAuth, verifyAdminOrOwner, deletePost);
 
+
 // Community Post Routes
-router.post("/createNewCommunityPost", userAuth, createNewCommunityPost);
-router.get("/getCommunityApprovedPosts", userAuth, getCommunityApprovedPosts);
+router.post("/createNewCommunityPost", createNewCommunityPost);
+router.get("/getCommunityApprovedPosts", getCommunityApprovedPosts);
 
 // Community Management Routes
-router.post("/createNewCommunity", userAuth, createNewCommunity);
-router.get("/getAllCommunities", userAuth, getAllCommunities);
-router.post("/joinCommunity", userAuth, joinCommunity);
-router.delete("/leaveCommunity", userAuth, leaveCommunity);
-router.get("/getUserCommunities", userAuth, getUserCommunities);
+router.post("/createNewCommunity", createNewCommunity); // Assuming this was implemented as per dbLogic.js
+router.get("/getAllCommunities", getAllCommunities);
+router.post("/joinCommunity", joinCommunity);
+router.delete("/leaveCommunity", leaveCommunity);
+router.get("/getUserCommunities", getUserCommunities);
+router.get("/getCommunityName", getCommunityName);
 
 // User Search Routes
 router.get("/searchUser", userAuth, searchUser);
 router.get("/findUser", userAuth, findUser);
 
 // Comment Routes
-router.post("/addComment", userAuth, addComment);
-router.get("/getComment", userAuth, getComment);
-router.get("/getCommentByCommentID", userAuth, getCommentByCommentID);
-router.post("/addCommentToPost", userAuth, addCommentToPost);
-router.get("/getComments/:postId", userAuth, getCommentsByPostID);
-router.put("/updateComment", userAuth, updateComment);
+router.post("/addComment", addComment);
+router.get("/getComment", getComment);
+router.get("/getCommentByCommentID", getCommentByCommentID);
+router.get("/getCommentsByPostID", getCommentsByPostID);
+router.put("/updateComment", updateComment);
 router.delete("/deleteComment/:commentId", userAuth, verifyAdminOrCommentOwner, deleteComment);
 
-
 // Messaging Routes
-router.post("/createConversation", userAuth, createConversation);
-router.get("/getConversations", userAuth, getConversations);
-router.post("/sendMessage", userAuth, sendMessage);
-router.get("/getMessages", userAuth, getMessages);
-router.get("/getLastMessage", userAuth, getLastMessage);
+router.post("/createConversation", createConversation);
+router.get("/getConversations", getConversations);
+router.post("/sendMessage", sendMessage);
+router.get("/getMessages", getMessages);
+router.get("/getLastMessage", getLastMessage);
+router.get("/getConversationDetails", getConversationDetails);
+router.post("/updateConversationTitle", updateConversationTitle);
 
 // Friend Routes
 router.get("/getUserInfo", userAuth, getUserInfo);
@@ -127,7 +141,18 @@ router.post("/getPostLikes", getPostLikes);
 router.post("/checkLikedPost", userAuth, checkLikedPost);
 router.post("/unlikePost", userAuth, unlikePost);
 
-// Test Route (auth optional depending on purpose)
-router.get("/getTest", userAuth, getTest);
+// Muting Routes
+router.post("/muteUser", muteUser);
+router.delete("/unmuteUser", unmuteUser);
+router.get("/getMuteList", getMuteList);
+router.get("/checkIfMuted", checkIfMuted)
+
+// Blocking Routes
+router.post("/blockUser", blockUser);
+router.delete("/unblockUser", unblockUser);
+router.get("/checkIfBlocked", checkIfBlocked);
+
+// Test Route
+router.get("/getTest", getTest);
 
 export default router;
