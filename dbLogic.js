@@ -4,6 +4,7 @@ import { generateToken } from "./utils/tokenGenerator.js";
 import { s3Upload } from "./fileManagement.js";
 import multer from "multer";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import sharp from "sharp";
 
 // Initialize s3 info
 const s3 = new S3Client({
@@ -594,14 +595,34 @@ const fileUpload = async (req, res) => {
 
   // Log file
   console.log("\nFile: " + file + "\n");
+  console.time("File upload");
 
   // Name file with timestamp
   const fileLoc = "uploads/" + file.originalname.split(' ').join('_');
 
+  /* If file is image, compress it to JPEG
+  let compressedBuffer = file.buffer;
+  if (file.mimetype.startsWith("image/")) {
+    console.log("Compressing image file...");
+
+    // Changing quality to dynamically adjust based on file size would be nice
+    compressedBuffer = await sharp(file.buffer)
+      .jpeg({ quality: 10 }) // Compress to JPEG with 10% quality
+      .toBuffer();
+  } else { // Set limit on file size to 10MB otherwise
+    if (file.size > 5 * 1024 * 1024) {
+      return res.status(400).json({ message: "File size exceeds 5MB limit." });
+    }
+  }*/
+
+  // Output the size of the original file and the compressed file
+  console.log("Original file size: " + file.size + " bytes");
+  //console.log("Compressed file size: " + compressedBuffer.length + " bytes");
+
   // Set up parameters for S3 upload
   const params = {
     Bucket: process.env.S3_BUCKET,
-    Body: file.buffer,
+    Body: file.buffer, // Change back to file.buffer to undo compression
     Key: fileLoc,
     ContentType: file.mimetype
   };
@@ -632,7 +653,7 @@ const fileUpload = async (req, res) => {
       // Log success
       console.log("Profile picture updated successfully for user: " + req.body.email);
     }
-
+    console.timeEnd("File upload");
     return `https://${process.env.S3_BUCKET}.s3.${process.env.S3_REGION}.amazonaws.com/${fileLoc}`; // Return the file URL
 
   } catch (err) {
