@@ -1,4 +1,5 @@
 import express from "express";
+import { userAuth, verifyAdmin, verifyAdminOrOwner,verifyAdminOrCommentOwner } from './middleware/authMiddleware.js';
 import { upload } from "./fileManagement.js";
 import {
   createNewPost,
@@ -65,20 +66,22 @@ import {
 
 const router = express.Router();
 
-// Authentication Routes
+// Authentication Routes (open)
 router.post("/login", verifyUserLogin);
 router.post("/register", registerNewUser);
-router.patch("/updateUserInfo", updateUserInfo);
+
+// Protected user routes
+router.patch("/updateUserInfo", userAuth, updateUserInfo);
 
 // User Management Routes
-router.post("/createNewUser", createNewUser);
-router.get("/getApprovedUsers", getApprovedUsers);
-router.get("/getPendingUsers", getPendingUsers);
-router.post("/approveUser", approveUser);
-router.post("/changeUserColor", changeColor);
-router.delete("/deleteUser", deleteUser);
-//router.get("/getSpecificUser", getSpecificUser); // Assuming this function will be implemented similarly to getApprovedUsers
-//router.post("/promoteUser", promoteUser);
+router.post("/createNewUser", userAuth, verifyAdmin, createNewUser);
+router.get("/getApprovedUsers", userAuth, verifyAdmin, getApprovedUsers);
+router.get("/getPendingUsers", userAuth, verifyAdmin, getPendingUsers);
+router.post("/approveUser", userAuth, verifyAdmin, approveUser);
+router.post("/changeUserColor", userAuth, changeColor);
+router.delete("/deleteUser", userAuth, verifyAdminOrOwner, deleteUser);
+// router.get("/getSpecificUser", ...);
+// router.post("/promoteUser", ...);
 
 // Post Routes
 router.post("/fileUpload", upload.single('file'), fileUpload);
@@ -87,7 +90,8 @@ router.get("/getAllApprovedPosts", getAllApprovedPosts);
 router.get("/getAllApprovedPostsByUser/:username", getAllApprovedPostsByUser);
 router.get("/getPendingPosts", getPendingPosts);
 router.get("/getUserPosts", getUserPosts);
-router.delete("/deletePost", deletePost);
+router.delete("/deletePost/:postId", userAuth, verifyAdminOrOwner, deletePost);
+
 
 // Community Post Routes
 router.post("/createNewCommunityPost", createNewCommunityPost);
@@ -102,8 +106,8 @@ router.get("/getUserCommunities", getUserCommunities);
 router.get("/getCommunityName", getCommunityName);
 
 // User Search Routes
-router.get("/searchUser", searchUser);
-router.get("/findUser", findUser);
+router.get("/searchUser", userAuth, searchUser);
+router.get("/findUser", userAuth, findUser);
 
 // Comment Routes
 router.post("/addComment", addComment);
@@ -111,7 +115,7 @@ router.get("/getComment", getComment);
 router.get("/getCommentByCommentID", getCommentByCommentID);
 router.get("/getCommentsByPostID", getCommentsByPostID);
 router.put("/updateComment", updateComment);
-router.delete("/deleteComment", deleteComment);
+router.delete("/deleteComment/:commentId", userAuth, verifyAdminOrCommentOwner, deleteComment);
 
 // Messaging Routes
 router.post("/createConversation", createConversation);
@@ -123,19 +127,19 @@ router.get("/getConversationDetails", getConversationDetails);
 router.post("/updateConversationTitle", updateConversationTitle);
 
 // Friend Routes
-router.get("/getUserInfo", getUserInfo);
-router.get("/checkIfFriended", checkIfFriended);
-router.post("/friendUser", friendUser);
-router.delete("/unfriendUser", unfriendUser);
-router.get("/getFriendsList", getFriendsList);
-router.get("/getSentFriendRequests", getSentFriendRequests);
-router.get("/getPendingFriendRequests", getPendingFriendRequests);
+router.get("/getUserInfo", userAuth, getUserInfo);
+router.get("/checkIfFriended", userAuth, checkIfFriended);
+router.post("/friendUser", userAuth, friendUser);
+router.delete("/unfriendUser", userAuth, unfriendUser);
+router.get("/getFriendsList", userAuth, getFriendsList);
+router.get("/getSentFriendRequests", userAuth, getSentFriendRequests);
+router.get("/getPendingFriendRequests", userAuth, getPendingFriendRequests);
 
 // Liking Post Routes
-router.post("/likePost", likePost);
+router.post("/likePost", userAuth, likePost);
 router.post("/getPostLikes", getPostLikes);
-router.post("/checkLikedPost", checkLikedPost);
-router.post("/unlikePost", unlikePost);
+router.post("/checkLikedPost", userAuth, checkLikedPost);
+router.post("/unlikePost", userAuth, unlikePost);
 
 // Muting Routes
 router.post("/muteUser", muteUser);
