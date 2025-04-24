@@ -1,5 +1,5 @@
 import express from "express";
-import { userAuth, verifyAdmin, verifyAdminOrOwner,verifyAdminOrCommentOwner } from './middleware/authMiddleware.js';
+import { userAuth, verifyAdmin, verifyAdminOrOwner, verifyAdminOrCommentOwner } from './middleware/authMiddleware.js';
 import { upload } from "./fileManagement.js";
 import {
   createNewPost,
@@ -79,7 +79,7 @@ router.get("/getApprovedUsers", userAuth, verifyAdmin, getApprovedUsers);
 router.get("/getPendingUsers", userAuth, verifyAdmin, getPendingUsers);
 router.post("/approveUser", userAuth, verifyAdmin, approveUser);
 router.post("/changeUserColor", userAuth, changeColor);
-router.delete("/deleteUser", userAuth, verifyAdminOrOwner, deleteUser);
+router.delete("/deleteUser/:email", deleteUser);
 // router.get("/getSpecificUser", ...);
 // router.post("/promoteUser", ...);
 

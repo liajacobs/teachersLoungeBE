@@ -412,7 +412,7 @@ const deleteUser = async (req, res, next) => {
 
   try {
     const results = await pool.query(sql, [
-      req.body.email
+      req.params.email
     ]);
     return res.status(200).json({ data: results });
   } catch (error) {
