@@ -111,7 +111,7 @@ const verifyUserLogin = async (req, res, next) => {
       }
 
       // Generate token and return response with schoolname
-      const token = generateToken(user); 
+      const token = generateToken(user);
       return res.status(200).json({
         message: "User logged in successfully",
         user: {
@@ -407,17 +407,21 @@ const updateUserInfo = async (req, res, next) => {
 
 
 
-const deleteUser = (req, res, next) => {
-  var sql =
-    "DELETE FROM USERS where USERS.Email=" + connection.escape(req.body.email);
-  pool.query(sql, function (error, results) {
-    if (error) {
-      console.error(error.stack);
-      return res.status(500).json({ message: error.stack });
-    }
-    return res.status(200).json({ message: "Success" });
-  });
-};
+const deleteUser = async (req, res, next) => {
+  const sql = "DELETE FROM USERS where USERS.Email= $1";
+
+  try {
+    const results = await pool.query(sql, [
+      req.body.email
+    ]);
+    return res.status(200).json({ data: results });
+  } catch (error) {
+    console.error(error.stack);
+    return res.status(500).json({ message: error.stack });
+  }
+
+
+}
 
 const getApprovedUsers = (req, res, next) => {
   console.log('getApprovedUsers hit');
@@ -797,7 +801,7 @@ const unlikePost = async (req, res, next) => {
 
     return res.status(200).json({ message: "Post unliked successfully." });
   } catch (error) {
-    console.error(error.stack); 
+    console.error(error.stack);
     return res.status(500).json({ message: "Server error, try again." });
   }
 };
@@ -815,7 +819,7 @@ const getPostLikes = async (req, res, next) => {
     console.log("LIKE COUNT:", count);
 
     return res.status(200).json({
-      likes: count 
+      likes: count
     });
   } catch (error) {
     console.error(error.stack);
